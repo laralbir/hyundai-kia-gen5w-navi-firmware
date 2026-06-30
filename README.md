@@ -66,8 +66,22 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 
 ## Documentación
 
-- [Estructura de ficheros y notas de RE](docs/estructura_ficheros.md) — árbol completo con tamaños, magic bytes y análisis por componente.
+### Documentos principales
+
+- [Estructura de ficheros y notas de RE](docs/estructura_ficheros.md) — árbol completo con tamaños, magic bytes y análisis por componente. Incluye iasImage, MCU frontkey, VR (mango-vr_fixed), módems y análisis del cifrado.
 - [Análisis técnico de los mapas HERE](docs/analisis_mapas_here.md) — formato HAF, esquema de `SPEED_PATCH.db`, bases de datos de radares, datos ADAS de horizonte electrónico, diccionarios VR, assets de interfaz e inventario de software de terceros.
+
+### Investigaciones en profundidad
+
+- [Formato binario HAFTLT](.claude/memory/haftlt_format.md) — ingeniería inversa completa del formato `VIT_EUR_*.haftlt`: cabecera, tabla índice de 6 bytes, registros de cámara GPS de 12 bytes, encoding de coordenadas HERE NDS (confirmado), secciones 1–4, código Python para extraer cámaras por bounding box, y muestra de 138 cámaras españolas localizadas.
+- [Análisis de la base de datos de radares](.claude/memory/project_radar_db.md) — estado del RE: qué archivos contienen realmente los datos de cámaras (`haftlt`, `hafls`), por qué `hafcc` no son cámaras GPS, mapa de viabilidad de modificación (trivial → muy difícil), y próximos pasos ordenados por factibilidad.
+- [Workflow SPEED_PATCH.db](.claude/memory/speed_patch_workflow.md) — procedimiento operativo completo para modificar límites de velocidad: extracción del ZIP, operaciones SQLite, reempaquetado, recálculo de MD5 y CRC32 signed int32 para `Rio_MY22_EU.ver`.
+
+### Contexto de ingeniería inversa (memoria IA)
+
+- [Motor de voz VR](.claude/memory/vr_engine.md) — motor LPTE TTS v1.5.1 (Cerence), estructura interna de `mango-vr_fixed.tar.gz`, 24 idiomas EU / coreano AU, datos de voz para POI dentro del ZIP de mapas.
+- [Hallazgos RE](.claude/memory/re_findings.md) — cifrado AES confirmado, tabla de magic bytes por archivo, firmware MCU ARM Cortex-M, formato iasImage, estrategia de análisis recomendada, componentes open source confirmados.
+- [Formato HAF](.claude/memory/haf_format.md) — HERE Automotive Format: extensiones (`.hafp`/`.hafr`/`.hafaip`/…), esquema SQLite de `SPEED_PATCH.db`, archivos de radar, ADAS, configuración JSON y assets de UI.
 
 ---
 

@@ -99,8 +99,14 @@ path|filename|record_id|checksum_int32|size_bytes|flag
 - MD5: `b00d66e5536ba37297bd6c3e1b7e0993`
 - La app de navegación es `appnavi.tar` (aplicación separada de los mapas).
 
+## Autonomía operativa
+
+El usuario concede **autonomía total** para tareas de investigación de RE: ejecutar todos los comandos (análisis, extracción, scripts, herramientas) sin pedir confirmación previa. Solo confirmar antes de hacer **commit o push**.
+
 ## Reglas de mantenimiento del repositorio
 
+- **Documentación de análisis**: cualquier componente, formato o hallazgo que se analice debe quedar documentado en `docs/` (fichero propio o sección relevante) **y** registrado en `.claude/memory/` (archivo de memoria correspondiente o uno nuevo si no existe, añadido al índice `MEMORY.md`).
+- **Commits y push**: hacer commit y push únicamente de los ficheros que estén en el área de stage (`git add` explícito). No usar `git add .` ni `git add -A`. Nunca incluir ficheros no staged aunque tengan cambios.
 - **README.md**: actualizar siempre que cambie cualquier fichero de `docs/`. El README debe reflejar el estado actual de la documentación.
 - **`.claude/memory/`**: todo hallazgo o información nueva que se añada a `docs/` debe quedar también registrado en el archivo de memoria correspondiente de `.claude/memory/`. Si no existe un archivo de memoria adecuado, crear uno nuevo y añadirlo al índice `MEMORY.md`.
 
