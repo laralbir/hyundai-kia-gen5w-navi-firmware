@@ -1,0 +1,10 @@
+# Ignorar todo
+*
+
+# Excepto estos
+!.gitignore
+!.claude/
+!.claude/**
+!docs/
+!docs/**
+!CLAUDE.md
