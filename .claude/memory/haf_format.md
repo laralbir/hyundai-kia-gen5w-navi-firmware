@@ -81,6 +81,14 @@ DEU (10.94 MB), ITA (11.25 MB), FRA (9.46 MB), GBR (9.47 MB), SPN (5.49 MB), CZE
 TLT = **Traffic Local Threats** (terminología HERE para cámaras fijas y control de velocidad media).
 
 **VIT_EUR.hafls** (80 MB) — Safety layer pan-europeo (HAF v1.00.01, julio 2025).
+- Cabecera: 0x40=`0x00031706` (mismo tag que haftlt), 0x4C=2,280,000, 0x50=76,320,000, 0x54=33,000,000 (posible bounding box Europa en escala interna HERE)
+- Búsqueda de pares GPS en rango europeo (stride 8B): 18,193 hits lat España — pero lon ≈ 0° → usa delta-encoding / Link IDs, NO coordenadas GPS planas
+
+**VIT_EUR.hafcc** (312 KB) — HAF v1.00.02, DATA_VERSION 2025.02.25.12.
+- 65,001 registros en offset 0x80 — **NO son cámaras GPS**
+- Pares de muestra: (3,080,070 / 18,046,915) → en WGS84 µ° serían 3°N 18°E (norte de África) — encoding desconocido
+- Estructura: bloques variables con sub-registros de coord_pair + link_ref
+- Probable uso: configuración de zonas de ciudad / áreas urbanas
 
 **Sonidos alerta radar** (`CT000009_HIGH/MID/LOW.wav`, 41.538 B c/u): `CT` = Camera Trap. Progresión LOW→MID→HIGH según se aproxima la cámara.
 
