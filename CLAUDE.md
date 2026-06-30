@@ -99,6 +99,11 @@ path|filename|record_id|checksum_int32|size_bytes|flag
 - MD5: `b00d66e5536ba37297bd6c3e1b7e0993`
 - La app de navegación es `appnavi.tar` (aplicación separada de los mapas).
 
+## Reglas de mantenimiento del repositorio
+
+- **README.md**: actualizar siempre que cambie cualquier fichero de `docs/`. El README debe reflejar el estado actual de la documentación.
+- **`.claude/memory/`**: todo hallazgo o información nueva que se añada a `docs/` debe quedar también registrado en el archivo de memoria correspondiente de `.claude/memory/`. Si no existe un archivo de memoria adecuado, crear uno nuevo y añadirlo al índice `MEMORY.md`.
+
 ## Notas de ingeniería inversa
 
 - **Empezar por**: `mango-rootfs.tar.gz` para el sistema de archivos base; `update.tar.gz` para los binarios del update OTA.
