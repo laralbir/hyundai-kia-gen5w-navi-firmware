@@ -4,6 +4,8 @@
 - [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets
 - [VR Engine](vr_engine.md) — Motor LPTE TTS v1.5.1 (Cerence), 24 idiomas EU / 1 AU (coreano), estructura interna de mango-vr_fixed.tar.gz
 - [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU ARM Cortex-M, estrategia de RE recomendada
-- [Radar DB Analysis](project_radar_db.md) — Estado RE: haftlt usa HERE Link IDs (no GPS directo), SPEED_PATCH.db es el único camino fácil, workflow de integridad documentado
-- [HAFTLT Format](haftlt_format.md) — Formato binario completo VIT_EUR_*.haftlt: cabecera, índice 6B, bloques 12B, secciones 1-4, comparativa 3 países
+- [Radar DB Analysis](project_radar_db.md) — Ningún archivo HERE da coordenadas GPS por fuerza bruta (probado contra 759 radares DGT reales + grafo de rutas 921MB); NDS es delta-relativo a tile, no absoluto
+- [HAFTLT Format](haftlt_format.md) — Cabecera/secciones 1-4 de .haftlt confirmadas; ⚠️ TODO el encoding GPS/cámara de sesiones anteriores REFUTADO (incl. test masivo en .hafr)
 - [Speed Patch Workflow](speed_patch_workflow.md) — Workflow operativo: modificar SPEED_PATCH.db + reempaquetar ZIP + actualizar MD5 y CRC32 en .ver
+- [Gen5W Exploit Ecosystem](gen5w_exploit.md) — Cadena completa de descifrado: navi_extended (USB exploit) → DecryptToPIPE + key.der → update_decryptor Docker → rootfs descifrado
+- [Engineering Mode](engineering_mode_notes.md) — SoC x86-64 confirmado; Engineering Mode bloqueado por checkSOPVersion() en MASS_PRODUCT; PIN QML enterMenu==21/11; rutas de acceso alternativas

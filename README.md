@@ -25,11 +25,27 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 
 ```
 .
-├── CLAUDE.md                        Contexto e instrucciones para el asistente IA
+├── CLAUDE.md                           Contexto e instrucciones para el asistente IA
 ├── docs/
-│   ├── estructura_ficheros.md       Árbol completo de ficheros con tamaños, magic bytes y notas de RE
-│   └── analisis_mapas_here.md       Análisis técnico detallado del paquete de mapas HERE
-└── .claude/memory/                  Archivos de memoria IA (hallazgos RE, formatos, motor VR…)
+│   ├── estructura_ficheros.md          Árbol completo de ficheros con tamaños, magic bytes y notas de RE
+│   ├── analisis_mapas_here.md          Análisis técnico detallado del paquete de mapas HERE
+│   ├── gen5w_exploit_ecosystem.md      Cadena de exploit para descifrar OTA + persistencia en el HU
+│   └── engineering_mode.md             Análisis de acceso a Engineering Mode (bloqueos SOP, PIN QML, rutas alternativas)
+└── tools/                              Herramientas y guías operativas para RE del HU
+    ├── README.md                       Guía maestra paso a paso (leer primero)
+    ├── setup.sh                        Clona todos los repos gen5w y verifica dependencias
+    ├── phase1_usb/                     Exploit USB — extracción de claves del HU
+    │   ├── README.md
+    │   └── prepare_usb.sh             Prepara el USB exFAT con los scripts necesarios
+    ├── phase2_decrypt/                 Descifrado OTA en PC (Docker)
+    │   ├── README.md
+    │   └── decrypt.sh                 Wrapper para update_decryptor
+    ├── phase3_patch/                   Parche del rootfs (wideopen + Engineering Mode bypass)
+    │   ├── README.md
+    │   └── patch.sh                   Wrapper para update-patcher
+    └── phase4_explore/                 Exploración y análisis del rootfs descifrado
+        ├── README.md
+        └── explore.sh                 Extrae y analiza el rootfs localmente
 ```
 
 > Los ficheros binarios de gran tamaño (imágenes de firmware, mapas, paquetes VR) están excluidos mediante `.gitignore`.
@@ -56,8 +72,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 
 ## Hallazgos principales de ingeniería inversa
 
-- **Cifrado:** AES/Rijndael confirmado mediante `COPYRIGHT.TXT` dentro del paquete de mapas HERE. La clave de descifrado probablemente está hardcodeada o derivada del VIN/IMEI dentro del rootfs del HU.
-- **Únicos ficheros accesibles sin descifrado:** `mango-vr_fixed.tar.gz` (ambas regiones, gzip real) y los `.bin` del MCU del panel de botones (ARM Cortex-M).
+- **Cifrado:** AES/Rijndael confirmado. La clave reside en el HU físico en el binario `DecryptToPIPE` + `decryption_key.der`. Existe una cadena de exploit pública (`gitlab.com/g4933/gen5w`) para extraerla del dispositivo y descifrar los OTA en PC.
+- **Únicos ficheros accesibles sin exploit:** `mango-vr_fixed.tar.gz` (ambas regiones, gzip real) y los `.bin` del MCU del panel de botones (ARM Cortex-M).
 - **Formato HERE Maps:** HAF (HERE Automotive Format), propietario. `SPEED_PATCH.db` es una base de datos SQLite 3 estándar con 10,3 millones de registros de límites de velocidad por segmento de carretera.
 - **Motor de voz:** LPTE TTS v1.5.1 (probablemente Cerence/ex-Nuance). 24 idiomas europeos en el paquete EU; solo coreano en el paquete AU.
 - **Formato iasImage:** Probable IAS (Image Authentication Subsystem) — imágenes de arranque seguro firmadas/cifradas. No coincide con los magic bytes de U-Boot, FIT/DTB ni zImage.
@@ -70,6 +86,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 
 - [Estructura de ficheros y notas de RE](docs/estructura_ficheros.md) — árbol completo con tamaños, magic bytes y análisis por componente. Incluye iasImage, MCU frontkey, VR (mango-vr_fixed), módems y análisis del cifrado.
 - [Análisis técnico de los mapas HERE](docs/analisis_mapas_here.md) — formato HAF, esquema de `SPEED_PATCH.db`, bases de datos de radares, datos ADAS de horizonte electrónico, diccionarios VR, assets de interfaz e inventario de software de terceros.
+- [Ecosistema de exploits gen5w](docs/gen5w_exploit_ecosystem.md) — cadena completa para descifrar OTA: exploit USB (`navi_extended`), extracción de `DecryptToPIPE` + `decryption_key.der`, Docker `update_decryptor`, patcher de persistencia y entorno `gen5w-docker`.
+- [Engineering Mode](docs/engineering_mode.md) — análisis de los dos bloqueos en firmware MASS_PRODUCT (`checkSOPVersion()` + PIN QML), PINs documentados, rutas alternativas de acceso (UART, GDS, firmware antiguo) y procedimiento recomendado.
 
 ### Investigaciones en profundidad
 

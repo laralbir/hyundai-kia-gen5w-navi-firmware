@@ -114,39 +114,60 @@ def read_index(data, start=0x200, end=None):
 
 ---
 
-### ✅ ENCODING DE COORDENADAS CONFIRMADO: HERE NDS
+### ❌ ENCODING "NDS de 32 bits absoluto" — REFUTADO (2026-06-30)
 
 ```python
 def nds_to_lat(v_u32): return (v_u32 / 2**32) * 180 - 90
 def nds_to_lon(v_u32): return (v_u32 / 2**32) * 360 - 180
-def lat_to_nds(lat):   return int((lat + 90) / 180 * 2**32) & 0xFFFFFFFF
-def lon_to_nds(lon):   return int((lon + 180) / 360 * 2**32) & 0xFFFFFFFF
 ```
 
-Verificado con datos reales daneses: valor 3,439,329,283 → lat=54.14°N (frontera DK-DE) ✓  
-**Tile boundary:** lon=±1.40625°E = 2^24/2^32×360 = 360/256. Aparece frecuentemente como falso positivo (límite de tile NDS, no cámara).
+Esta fórmula se dio por "confirmada" en una sesión anterior basándose en **un único punto de datos**:
+un valor en datos daneses que decodificaba a 54.14°N, cerca de la frontera DK-DE. Con un solo punto,
+esa coincidencia es estadísticamente débil (cualquier valor de 32 bits tiene ~1/180 de probabilidad de
+caer en un rango de latitud plausible por puro azar).
+
+**Test decisivo de refutación:** se buscaron las 759 coordenadas reales de radares DGT (ver
+[[project_radar_db]]) con esta fórmula dentro de `VIT_EUR.hafr` — el **grafo de rutas pan-europeo
+completo (921 MB, 241M palabras de 32 bits)**, que por definición DEBE contener geometría real de
+carreteras en algún sitio. Resultado: de 82,347 candidatos de latitud dentro de tolerancia (~90 m),
+**0 tuvieron una longitud adyacente coincidente**. Mismo resultado negativo que en `haftlt` (ver
+corrección más abajo).
+
+**Conclusión:** el formato HERE NDS real (especificación pública de NDS Association) usa codificación
+**relativa por tile/mesh**: cada tile tiene una coordenada base (Morton-coded) y los puntos dentro de
+él se almacenan como **deltas pequeños** (8/16/24 bits) respecto a esa base — NO como un valor lineal
+absoluto de 32 bits por punto. Esto explica por qué un escaneo de fuerza bruta de 32 bits nunca
+encuentra coincidencias reales: la información de posición está fragmentada entre una referencia de
+tile (en otra parte de la estructura) y un offset local pequeño. **Pendiente:** localizar la tabla de
+tiles/mesh-base y el esquema de delta antes de poder decodificar coordenadas reales en cualquier
+archivo HERE de este paquete (haftlt, hafr, hafls, hafcc).
+
+**Lo único que sigue siendo válido:** el límite de tile en `lon=±1.40625°E` (`=2^24/2^32×360`) seguía
+apareciendo como patrón estructural recurrente — consistente con un sistema de tiles de **256 columnas
+en el nivel raíz** (2^8), lo cual sí encaja con la jerarquía real de NDS (niveles de zoom Morton). Esto
+sugiere que el "scale" de 32 bits no está mal en general — está mal asumir que un **registro individual**
+de carretera/cámara usa los 32 bits completos como coordenada absoluta independiente del tile.
 
 ---
 
-### ✅ REGISTRO DE CÁMARA: estructura de 12 bytes CONFIRMADA
+### ❌ "REGISTRO DE CÁMARA de 12 bytes" — REFUTADO, dependía del encoding refutado arriba
 
 ```c
+// Hipótesis anterior, NO confirmada — descartar:
 struct CameraRecord {
-    uint32_t nds_lat;    // latitud HERE NDS (lat = v/2^32 * 180 - 90)
-    uint32_t nds_lon;    // longitud HERE NDS (lon = v/2^32 * 360 - 180)
-    uint32_t attribs;    // [b0=speed_limit_kmh?][b1=camera_type?][b2=flags?][b3=flags?]
+    uint32_t nds_lat;
+    uint32_t nds_lon;
+    uint32_t attribs;
 };
 ```
 
-Ejemplo SPN, cámara en 38.34°N -4.22°E (Córdoba):
-```
-raw: 85 d6 85 b6  90 eb ff 7c  50 de 00 f0
-nds_lat = 0xB685D685 → 38.336°N ✓
-nds_lon = 0x7CFFEB90 → -4.219°E ✓
-attribs = [b0=0x50=80, b1=0xDE, b2=0x00, b3=0xF0]
-```
+El "ejemplo confirmado" de Córdoba (38.34°N -4.22°E) que sustentaba esta estructura usaba la misma
+fórmula NDS de 32 bits absoluto que quedó refutada arriba por el test masivo contra `.hafr` y contra
+las 759 coordenadas reales de radares DGT (0 coincidencias). Era, con alta probabilidad, otro falso
+positivo de coincidencia aleatoria — coherente con el patrón ya visto en la sección de corrección de
+"138 cámaras" más abajo. **No dar por buena ninguna coordenada de cámara obtenida por este método.**
 
-**attribs pendiente decode:**
+**attribs pendiente decode (nota histórica, igualmente sin confirmar):**
 - `b0` podría ser velocidad km/h (b0=80 en Córdoba, b0=30 en Mallorca coinciden con límites reales)
 - `b1` frecuentes: 0xDE=222, 0xDD=221, 0xEB=235 (posibles tipo-HERE de cámara)
 - El índice externo (tabla 0x200→sec1_start) **NO** apunta a estos registros GPS
@@ -193,7 +214,7 @@ En Dinamarca, offsets consecutivos separados exactamente 12B → tamaño fijo co
 
 ---
 
-## ✅ REGIÓN PRINCIPAL DE CÁMARAS (sec4_end → EOF) — HALLAZGO CLAVE
+## ⚠️ REGIÓN SIN ETIQUETAR (sec4_end → EOF) — REEVALUADO, MAYORÍA FALSOS POSITIVOS
 
 **Localización SPN:**
 ```
@@ -202,59 +223,89 @@ EOF      = 5,755,556 bytes = 0x57D2A4
 Tamaño:    2,877,847 bytes (≈50% del archivo total)
 ```
 
-### Contenido confirmado
+### ❌ CORRECCIÓN IMPORTANTE (control de calidad posterior)
 
-- **138 registros de cámara española** localizados (lat 34.5-44.5°N, lon -10.5 a 5.5°E)
-- Los GPS reales están aquí con stride **NO constante** (los registros no son un array plano)
-- Inicio de región: bounding boxes de tiles del índice espacial (coordenadas pan-europeas)
+Un hallazgo anterior en esta misma sesión afirmaba "138 cámaras españolas confirmadas" mediante escaneo
+stride-4 de toda la región buscando pares NDS válidos dentro del bounding-box de España. **Ese resultado
+era mayoritariamente ruido.** Verificación posterior:
 
-### Sub-descriptores de tipos de cámara (header 0xC4–0xFF)
+1. **Filtro de límites de tile NDS**: los límites de tile ocurren en todo múltiplo de `1.40625°`
+   (= 2²⁴/2³² × 360) tanto en lat como en lon. Re-escaneando los 58 candidatos brutos en bbox España:
+   - 14 caían en límite de tile en AMBOS ejes (basura total del índice espacial)
+   - 28 caían en límite de tile solo en longitud
+   - 6 caían en límite de tile solo en latitud
+   - **Solo 10/58 sobrevivieron el filtro**
+2. De esos 10 supervivientes, al menos 2 comparten coordenada exacta (41.3177°N -7.8789°E) con
+   `attribs` que decodifican como **texto ASCII legible** (`" ed "`, `"erA "`) — es decir, son colisiones
+   con una cadena de texto en otra parte del archivo, no datos de cámara.
+3. Se probó también usar el sentinel `XX_FFFFFF` (ver abajo) como ancla — de 33 candidatos en bbox España
+   ampliado (incl. Canarias), el **100% cayó en límite de tile** (falsos positivos puros).
+
+**Conclusión: la hipótesis "registro de cámara = 12B [NDS_lat][NDS_lon][attribs] disperso en la región
+sin etiquetar, localizable por escaneo de coordenadas" NO está validada.** El espacio de valores NDS de
+32 bits es tan grande que un escaneo de fuerza bruta sobre ~720K posiciones produce decenas de coincidencias
+aleatorias dentro de cualquier bounding-box razonable, agravado porque la región está LLENA de quasi-NDS
+(límites de tile, IDs de enlace que caen por azar en rango, fragmentos de texto/flags). Cualquier coordenada
+"confirmada" en sesiones anteriores debe tratarse como **no verificada** hasta correlación cruzada con una
+fuente externa (BD pública DGT) o hasta entender la estructura real de la región.
+
+### Lo que SÍ se mantiene firme
+
+- **Encoding NDS confirmado en general** (ver sección anterior) — válido para coordenadas de tile en
+  cabeceras y para los pocos valores verificados contra ubicaciones reales conocidas (frontera DK-DE)
+- **Sentinel `XX_FFFFFF`** (high byte variable, low 3 bytes = 0xFFFFFF) aparece 14,026 veces en la región
+  de SPN — es extremadamente común, lo que lo invalida como marcador específico de cámara; probablemente
+  es parte de la codificación general de tiles/límites del índice espacial, no un delimitador de registro
+- **Sub-descriptores de tipos en header (0xC4–0xFF)** — estructura sigue siendo válida (ver abajo), pero
+  su relación con "cantidad de cámaras" es dudosa: en Bélgica los `cnt` llegan a 7,296 y 7,260 para un país
+  pequeño, lo que sugiere que cuentan **asociaciones cámara↔enlace de carretera**, no instalaciones físicas
+- **Campo header 0x80** = `(N << 24) | camera_region_start` donde N varía por país (17 en SPN, 9 en DNK,
+  1 en BEL) — fórmula confirmada aritméticamente, pero el significado de N (¿nº de tiles?) no está probado
+
+### Sub-descriptores de tipos (header 0xC4–0xFF) — estructura, no recuento de cámaras
 
 ```
-[0xC4] tipo=0x0005  cnt=12   → tipo 5,  12 cámaras
-[0xD0] tipo=0x000B  cnt=60   → tipo 11, 60 cámaras
-[0xDC] tipo=0x000D  cnt=72   → tipo 13, 72 cámaras
-[0xE8] tipo=0x000F  cnt=168  → tipo 15, 168 cámaras (dominante)
-[0xF4] tipo=0x0011  cnt=144  → tipo 17, 144 cámaras
-                    TOTAL  = 456 cámaras en España
+SPN: [0xC4] tipo=5  cnt=12   [0xD0] tipo=11 cnt=60   [0xDC] tipo=13 cnt=72
+     [0xE8] tipo=15 cnt=168  [0xF4] tipo=17 cnt=144  (total asociaciones=456)
+BEL: [0xC4] tipo=2  cnt=0    [0xD0] tipo=8  cnt=7296 [0xDC] tipo=10 cnt=36
+     [0xE8] tipo=45 cnt=7260 [0xF4] tipo=100 cnt=60  (total asociaciones=14652)
 ```
 
-Tipos: números IMPARES 5, 11, 13, 15, 17. Significado exacto pendiente (posibles: fija/tramo/semáforo/radar_móvil/ADAS).
+Los `cnt` de BEL (7296, 7260) descartan que sean "número de cámaras" — son demasiado altos para un país
+pequeño. Interpretación más plausible: nº de **enlaces de carretera (HERE Link IDs)** vinculados a cada
+tipo de amenaza/cámara en ese país.
 
-### Cámaras españolas confirmadas (muestra)
+### Próximo enfoque recomendado (no intentado aún)
 
-| Latitud | Longitud | Zona | attribs b0 |
-|---------|----------|------|------------|
-| 38.34°N | -4.22°E | Córdoba / La Mancha | 0x50=80 km/h |
-| 41.15°N | 2.81°E | Costa Daurada | 0x3A=58 |
-| 37.97°N | -1.41°E | Murcia | 0x71=113 |
-| 39.39°N | 2.70°E | Mallorca | 0x1E=30 km/h |
-| 40.79°N | -1.31°E | Zaragoza | 0x57=87 |
-| 41.48°N | 0.00°E | Lleida | 0x20=32 |
-| 40.08°N | -7.03°E | Cáceres | 0xC8=200 |
-| 43.59°N | -5.62°E | Asturias | 0x35=53 |
+1. **No** confiar en escaneo NDS de fuerza bruta sin validación cruzada
+2. Buscar la verdadera tabla de cámaras vía los **HERE Link IDs** (visible en patrones tipo
+   `(X, X+0x8000)` / `(X, X+0x800000)` que sí están confirmados como estructurales) y cruzarlos con
+   `SPEED_PATCH.db` (que usa la misma clave `LINK_ID`) — ese cruce podría revelar qué enlaces llevan
+   asociada una amenaza de tipo 5/11/13/15/17
+3. Si se dispone de una build anterior/posterior del mismo haftlt, hacer diff binario para aislar
+   qué bytes cambian al añadir/quitar exactamente una cámara conocida (método más fiable que inferencia)
+4. Correlacionar con base de datos pública de radares DGT antes de declarar cualquier coordenada confirmada
 
-### Código Python para encontrar cámaras
+### Test del cruce Link ID — resultado INCONCLUSO (ligera señal, no probado)
 
-```python
-def camera_region_start(data):
-    sec3_end  = struct.unpack_from('<I', data, 0xA8)[0]
-    sec4_size = struct.unpack_from('<I', data, 0xAC)[0]
-    return sec3_end + sec4_size
+Se probó el punto 2: extraer todos los IDs de las secciones 3 y 4 de SPN (masking bit31:
+`v & 0x7FFFFFFF`), filtrarlos al rango válido de `LINK_ID` en SPEED_PATCH.db (736–153,433,402),
+y comprobar cuántos coinciden con un `LINK_ID` real:
 
-def find_cameras_in_bbox(data, lat_min, lat_max, lon_min, lon_max):
-    start = camera_region_start(data)
-    hits = []
-    for off in range(start, len(data) - 12, 4):
-        a, b, c = struct.unpack_from('<III', data, off)
-        lat = (a / 2**32) * 180 - 90
-        lon = (b / 2**32) * 360 - 180
-        if lat_min < lat < lat_max and lon_min < lon < lon_max:
-            hits.append((off, lat, lon, c))
-    return hits
-
-# España: lat_min=34.5, lat_max=44.5, lon_min=-10.5, lon_max=5.5
 ```
+sec3: 5,244/16,873 IDs distintos caen en rango LINK_ID → muestra 5000 → 6.46% coinciden
+sec4: 7,271/21,805 IDs distintos caen en rango LINK_ID → muestra 5000 → 6.50% coinciden
+control aleatorio (mismo rango):                          4.56% coinciden
+densidad real de LINK_ID en el rango (7,100,825 distintos / 153,432,666): 4.63%
+```
+
+La tasa observada (6.46–6.50%) es ~1.4× la línea base de densidad/azar (4.56–4.63%) — una señal
+por encima del ruido pero **demasiado débil para confirmar** que las secciones 3/4 sean mayormente
+`LINK_ID`s reales de carretera. Interpretación más probable: una **minoría** de los valores en
+sec3/sec4 son LINK_IDs genuinos, mezclados con otro tipo de dato (índices internos, IDs de tile,
+referencias cruzadas no relacionadas con SPEED_PATCH.db). No usar este cruce como base fiable para
+localizar cámaras sin filtrado adicional (p.ej. cruzar solo los IDs que aparecen en posiciones
+consistentes con el patrón bidireccional `(X, X+2^31)` Y dentro de tiles de España).
 
 ---
 
@@ -266,7 +317,39 @@ def find_cameras_in_bbox(data, lat_min, lat_max, lon_min, lon_max):
 | `VIT_EUR.hafcc` | 312 KB | Configuración país/ciudad | 65,001 records, no son cámaras GPS |
 | `VIT_EUR.hafbc` | 3.6 KB | Límites por país | **Texto plano** — completamente legible |
 | `SPEED_PATCH.db` | 153 MB | Límites por Link ID | **SQLite** — completamente accesible |
-| `HAFTLT/*.haftlt` | 1.8-11 MB | Cámaras por país | Binario propietario — parcialmente analizado |
+| `HAFTLT/*.haftlt` | 1.8-11 MB | Cámaras por país | Binario propietario — encoding GPS refutado |
+| `VIT_EUR.hafr` | 921 MB | Grafo de rutas pan-EU | Sin cifrar, mismo encoding NDS refutado probado y descartado |
+
+## Estado real de la investigación (resumen honesto, 2026-06-30)
+
+Tras un test sistemático contra datos públicos reales (radares DGT) y contra el archivo de mayor
+tamaño y mejor candidato a contener geometría real (`hafr`, 921 MB), **no se ha logrado decodificar
+ninguna coordenada GPS real en ningún archivo HERE binario de este paquete**. Toda coordenada
+"confirmada" en notas anteriores de esta investigación debe considerarse refutada.
+
+**Lo que SÍ está sólido:**
+- Estructura de cabecera HAF común (`FORMAT_VERSION_*`, `DATA_VERSION_*`, offsets/tamaños de sección)
+- Layout de secciones de `haftlt` (índice 6B, secciones 1-4, sus invariantes aritméticas)
+- `SPEED_PATCH.db` — SQLite accesible, *no* es el archivo que el usuario quiere modificar (límites de
+  velocidad por tramo, no posición de cámaras) pero queda como referencia de formato accesible
+- Patrón estructural de tile en `lon=±1.40625°E` → consistente con jerarquía NDS real de 256 tiles
+  en el nivel raíz (delta-encoding, no coordenada absoluta de 32 bits por punto)
+
+**Lo que falta y por qué es difícil:**
+- El formato NDS real usa coordenadas **relativas a un tile/mesh base** (Morton-coded), no un valor
+  lineal de 32 bits por punto — hay que localizar la tabla de tile-bases y el esquema de delta exacto
+  antes de poder leer o escribir ninguna coordenada
+- El binario que sí sabe decodificar esto (`appnavi.tar`) está cifrado con AES sin clave conocida
+- No disponemos de una segunda versión del mismo `.haftlt`/`.hafr` para diff binario dirigido
+
+**Caminos restantes, de más a menos prometedor:**
+1. Obtener una build de mapas HERE distinta (versión anterior o posterior) del mismo país → diff
+   binario dirigido sobre un cambio de cámara conocido — el método más fiable, pero requiere material
+   que no tenemos ahora
+2. Estudiar la especificación pública de NDS Association (formato NDS estándar, no propietario HERE)
+   para entender el esquema real de tile-base + delta y aplicarlo a estos archivos
+3. Intentar romper el cifrado AES de `appnavi.tar` / `mango-rootfs.tar.gz` para acceder al parser real
+   (proyecto de RE considerablemente más grande, fuera del alcance de esta sesión)
 
 ## Archivos de audio de alerta (confirman qué archivos usa el sistema)
 
@@ -304,12 +387,17 @@ Para instalar cualquier cambio dentro del ZIP:
 3. **Relación índice → cámaras GPS** — las ~13,300 entradas del índice externo NO apuntan a los registros GPS (todos los offsets inspeccionados apuntan a estructuras de rango). Ruta desconocida
 4. **Tipos 5, 11, 13, 15, 17** — qué cámara corresponde a cada tipo
 
-## Para modificar: añadir/quitar cámara
+## Para modificar: añadir/quitar cámara — ⚠️ NO VIABLE TODAVÍA
 
-1. Crear registro de 12B: `struct.pack('<III', lat_to_nds(lat), lon_to_nds(lon), attribs)`
-2. Insertar en la región GPS (sec4_end → EOF), posición correcta dentro del tile correspondiente
-3. Actualizar sub-descriptores de tipo en header (0xC4-0xFF): incrementar `cnt` del tipo correspondiente
-4. ¿Actualizar CRC/hash en 0x80? Incógnita — puede que appnavi no lo verifique
-5. Reempaquetar ZIP → recalcular MD5 → actualizar CRC32 signed en .ver
+El procedimiento descrito en una versión anterior de esta nota (insertar struct de 12B en la región
+sec4_end→EOF) **asumía que esa región es un array de registros de cámara fácilmente localizables**.
+Esa asunción ha sido refutada (ver sección de corrección arriba): no se ha logrado distinguir de forma
+fiable un registro de cámara real de ruido/coincidencias NDS en esa región. Hasta no resolver la
+estructura real (vía cruce de Link IDs, diff binario entre builds, o ingeniería inversa del binario de
+`appnavi` que parsea este formato), **no hay un método de modificación seguro para `.haftlt`**.
+
+Alternativa práctica ya validada para el objetivo final (avisos de velocidad/radar): el workflow de
+`SPEED_PATCH.db` (ver [[speed_patch_workflow]]) sí está confirmado y operativo — permite modificar
+límites de velocidad por tramo sin tocar el formato binario propietario haftlt.
 
 Related: [[haf-format]] · [[project-radar-db]] · [[re-findings]]

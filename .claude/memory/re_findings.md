@@ -59,7 +59,11 @@ metadata:
 1. **Punto de entrada 1:** `mango-vr_fixed.tar.gz` — ya accesible, explorar estructura VR.
 2. **Punto de entrada 2:** `mango-rootfs.tar.gz` — una vez descifrado, es el núcleo del sistema. Buscar en `/etc/`, `/usr/bin/`, `/system/`. Objetivos: `update_agent`, `fota`, gestión HERE, protocolo CAN bus.
 3. **Punto de entrada 3:** `update.tar.gz` — firmware principal del sistema (kernel, módulos, binarios).
-4. **Para descifrar:** el instalador OTA del HU contiene la lógica. Buscar en el rootfs los procesos de instalación que leen los archivos del USB.
+4. **Para descifrar — ruta conocida (gen5w exploit):**
+   - Exploit `navi_extended` en HU físico → extrae `DecryptToPIPE` + `decryption_key.der`
+   - Docker `update_decryptor` con esos dos archivos descifra todos los OTA en PC
+   - Ver `docs/gen5w_exploit_ecosystem.md` para el flujo completo
+   - `DecryptToPIPE` es el binario del HU que actúa de `update_agent` — reside en `/Bin/` del HU
 5. **SPEED_PATCH.db** (dentro del ZIP de mapas) — SQLite accesible directamente con `sqlite3`.
 6. **Frontkey MCU bins** — accesibles, analizables con Ghidra + ARM Cortex-M.
 

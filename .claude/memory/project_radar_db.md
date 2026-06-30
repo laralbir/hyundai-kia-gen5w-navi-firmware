@@ -116,10 +116,57 @@ Ver documento completo: [[haftlt-format]]
 
 ### Próximos pasos pendientes (en orden de viabilidad)
 
-1. **Ejecutar workflow SPEED_PATCH.db** — Paso a paso documentado en [[speed-patch-workflow]]
-2. **Diff entre versiones haftlt** — Conseguir versión anterior de mapas HERE para el mismo país y hacer diff binario: los bytes cambiados = posición de cámara nueva/quitada
-3. **Correlación con BD pública DGT** — Buscar Link IDs de radares conocidos en España usando coordenadas de https://www.dgt.es/radares/ y buscar esos Link IDs en el haftlt de SPN
-4. **Tooling HERE open-source** — Buscar proyectos que procesen mapas HERE NDS/HAF format
+1. **Exploit gen5w** (ver [[gen5w-exploit]]) → extraer `DecryptToPIPE`+`key.der` del HU físico →
+   descifrar `appnavi.tar` → analizar el parser real con Ghidra. **Activo**: otro agente trabaja
+   en obtener acceso a Engineering Mode.
+2. **`update_fetcher`** (repo gen5w, no requiere HU) → descargar build anterior de mapas para el
+   mismo modelo → diff binario entre dos `.haftlt` del mismo país → localización exacta de registros.
+3. ~~Correlación con BD pública DGT~~ — **PROBADO, resultado negativo confirmado (2026-06-30)**, ver abajo
+4. ~~Tooling HERE open-source~~ — No encontrado; formato HAF es propietario sin RE pública conocida
+
+### ✅ Test decisivo contra dataset público DGT (2026-06-30) — CONFIRMA arquitectura Link-ID
+
+Se descargó el dataset oficial abierto de radares fijos de la DGT (NAP — Punto de Acceso Nacional de
+Tráfico, `http://infocar.dgt.es/datex2/dgt/PredefinedLocationsPublication/radares/content.xml`,
+formato DATEX2/XML, licencia CC-BY, actualización horaria) → **759 coordenadas reales** de radares en
+la España peninsular con precisión de 6 decimales.
+
+Se buscaron esas 759 coordenadas dentro de `VIT_EUR_SPN.haftlt` completo (no solo la región de
+cámaras) probando:
+- NDS estándar de 32 bits (la fórmula confirmada para boundary boxes de cabecera)
+- Microgrados con signo (`v / 1e6`)
+- Decigrados ×1e5
+- NDS truncado a 24 bits altos
+
+con tolerancia de hasta ±90 m y comprobando que lat/lon aparecieran en palabras adyacentes (offset±4,
+±8 bytes). **Resultado: 0 coincidencias en todos los casos.** Esto descarta definitivamente que el
+archivo contenga pares de coordenadas WGS84 (en cualquier escala lineal simple) de cámaras reales
+recuperables por escaneo de fuerza bruta — confirma con evidencia externa (no solo sospecha estructural)
+que el formato usa **HERE Link IDs + offset-a-lo-largo-del-enlace**, resuelto contra el grafo de rutas
+(`.hafr`, 921 MB), no coordenadas absolutas embebidas.
+
+**Implicación práctica:** todas las "cámaras españolas" reportadas en sesiones anteriores mediante
+escaneo NDS (ver corrección en [[haftlt-format]]) eran ruido — ahora confirmado por partida doble
+(colisión con límites de tile + cero correlación con datos reales).
+
+### ❌ Test de `.hafr` (921 MB) — TAMBIÉN negativo, refuta el encoding NDS de 32 bits en general
+
+Se extrajo `VIT_EUR.hafr` completo (sin cifrar, 921 MB = 241,448,302 palabras de 32 bits) y se repitió
+el mismo cruce contra las 759 coordenadas DGT con tolerancia ±90 m, usando numpy para procesar el
+archivo entero. De **82,347 candidatos de latitud** dentro de tolerancia, **0 tuvieron longitud
+adyacente coincidente**.
+
+Como `.hafr` es el grafo de rutas y por definición debe contener geometría real en algún formato, este
+resultado niega algo más fundamental que la arquitectura Link-ID de haftlt: **niega que la fórmula NDS
+de 32 bits absolutos (`v/2^32 × rango - offset`) sea correcta en ningún archivo de este paquete**, ni
+siquiera para nodos de carretera. El "match" de la frontera DK-DE de sesiones anteriores que sustentaba
+esta fórmula era un único punto de datos — estadísticamente débil, casi con certeza una coincidencia.
+
+**Conclusión arquitectónica:** el formato NDS real (spec pública de NDS Association) codifica
+coordenadas como **deltas relativos a un tile/mesh base** (Morton-coded), no como un entero de 32 bits
+absoluto e independiente por punto. Localizar la tabla de tile-bases + esquema de delta es un
+prerrequisito para decodificar CUALQUIER coordenada en estos archivos — bloquea tanto a `haftlt` como
+a `hafr`, `hafls` y `hafcc`. Detalle completo y vías futuras en [[haftlt-format]].
 
 ### Archivos scratchpad extraídos (efímeros, re-extraer en cada sesión)
 

@@ -9,3 +9,5 @@
 !docs/**
 !CLAUDE.md
 !README.md
+!tools/
+!tools/**

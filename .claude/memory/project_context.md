@@ -17,12 +17,14 @@ Ingeniería inversa del firmware y mapas del Head Unit del Kia Rio 2022 (variant
 - Release: `25RU2_001`
 - Build server path: `/data001/vc.integrator/__EVENT_BUILD_s5w.25ru2.250702_MASS_PRODUCT_25RU2_001_251204134526/build-mango/BUILD/deploy/images/5w/usb/`
 
-**Hallazgo clave de RE:** Cifrado confirmado como **AES/Rijndael** (vía `COPYRIGHT.TXT` del paquete de mapas HERE). La clave reside casi con certeza en el rootfs del HU (hardcodeada o derivada del VIN/IMEI). Sin el rootfs descifrado, los binarios del OTA no son accesibles directamente.
+**Hallazgo clave de RE:** Cifrado confirmado como **AES/Rijndael** (vía `COPYRIGHT.TXT` del paquete de mapas HERE). La clave reside en el HU físico — el binario `DecryptToPIPE` (en `/Bin/` del HU) la usa con `decryption_key.der` para descifrar el OTA.
 
 **Único archivo en formato estándar (gzip real):** `mango-vr_fixed.tar.gz` (vrau y vreu) — ya explorado y documentado en [[vr-engine]].
 
-**Why:** Todo el paquete OTA está encriptado con AES; el proceso de descifrado vive en el rootfs del HU. El punto de entrada para RE es obtener/analizar ese proceso de instalación.
+**Ruta de descifrado conocida (gen5w exploit):** exploit `navi_extended` en HU físico → extrae `DecryptToPIPE` + `decryption_key.der` → Docker `update_decryptor` descifra todos los archivos OTA en PC. Ver [[gen5w-exploit]] y `docs/gen5w_exploit_ecosystem.md`.
 
-**How to apply:** Cuando se proponga analizar archivos del paquete, recordar que solo `mango-vr_fixed.tar.gz` es accesible directamente. Para el resto, buscar primero el `update_agent` o binario equivalente en el rootfs.
+**Why:** Todo el paquete OTA está encriptado con AES; la clave solo existe en el HU físico. El exploit gen5w es el único camino conocido para obtenerla.
+
+**How to apply:** Cuando se proponga analizar archivos del paquete, recordar que solo `mango-vr_fixed.tar.gz` es accesible directamente sin HU. Con acceso físico al HU, seguir el flujo gen5w para descifrar el resto.
 
 Related: [[file-details]] · [[haf-format]] · [[vr-engine]] · [[re-findings]]
