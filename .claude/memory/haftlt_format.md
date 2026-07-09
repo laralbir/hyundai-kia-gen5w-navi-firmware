@@ -448,6 +448,16 @@ Justo tras la tabla de nombres: `[u32 record_count][12B padding][record_count ×
 
 **Por qué importa:** primer texto legible con significado geográfico de toda la investigación (3+ sesiones previas nunca encontraron nada así). No es la coordenada de una cámara, pero es la pista más prometedora hasta ahora — la tabla de 16 bytes al lado casi con toda seguridad conecta con algo posicional dado el patrón de IDs, solo falta encontrar cómo.
 
+### Continuación (mismo día): `f0` = ID estable, conexión directa REFUTADA
+
+Usando Bélgica dirigido (único país con cambio real en estas tablas): comparar *conjuntos de valores* por campo entre builds (no posición) reveló que `f0` tiene 97,4% de solapamiento — es un **ID persistente por registro**, no un índice posicional. Filtrar por "`f0` nunca visto en la build antigua" aísla 204 registros genuinamente nuevos (delta real: 201) — mucho más preciso que el diff binario prefijo/sufijo usado antes (que da 0-69 de prefijo común porque la tabla se renumera casi entera en cada build).
+
+`f2`/`f3` = referencias bidireccionales a **registros vecinos** (no a nombres): registro en índice 3406 tiene `f3=3407`; registro 3407 tiene `f2=3406`. Explica por qué antes parecían "rondar el índice propio".
+
+**Prueba sistemática y REFUTACIÓN:** los 8 campos de los 204 registros nuevos probados como offset (4 anclas × 2 sentidos) e índice directo contra los 157 nombres nuevos de Bélgica → **0 aciertos en todas las combinaciones**, frente a ~4,1 esperados por azar (simulación 10.000 pruebas). La conexión nombre↔registro NO es un campo simple. Detalle completo, incluyendo la tabla de resultados por campo/ancla: `docs/haftlt_build_diff_260128.md` sección "Resultado 6".
+
+**No repetir** la prueba de offset/índice simple sin nueva evidencia — está descartada con solidez estadística, no es "no probado todavía". El siguiente paso es buscar una tabla puente (quizá Secciones 2-4, que comparten el patrón ID+vecino) o aceptar que `linked_records` no tiene relación con los nombres.
+
 ---
 
 **Herramientas de sesión 2026-07-09 (todas en `tools/`, código sí commiteado, datos/salida no):**
