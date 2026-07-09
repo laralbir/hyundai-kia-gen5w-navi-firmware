@@ -49,6 +49,19 @@ tabla_end = 0x108 + 464688 × 8 = 0x38ba88 (3.717.768)
 
 Inspeccionando los bytes alrededor de ese offset calculado, el patrón `a=STRIDE/a=0xFFFF` **efectivamente deja de cumplirse** y transiciona a una estructura distinta (pares de valores incrementando en pasos de `0x80`, el mismo patrón de "tabla de umbrales" ya visto en la región cola de `VIT_EUR_AUT.haftlt` y justo antes de la tabla de nombres en `VIT_EUR_BEL.haftlt`). La coincidencia aproximada del límite apoya la hipótesis, aunque la transición no es un corte perfectamente limpio — pendiente de verificación más precisa (podría haber unos pocos bytes de relleno/alineación en el borde).
 
+## ⚠️ Corrección (mismo día, tras escanear la tabla completa): NO es uniforme
+
+La caracterización inicial de arriba se basó en una muestra de solo ~30 entradas al principio de la tabla — **no es representativa del resto.** Al escanear las 464.688 entradas completas:
+
+- El patrón limpio de `a=STRIDE` solo aparece en **24 entradas** al principio (el "ramp-up" de niveles jerárquicos ya descrito), no en toda la tabla.
+- La inmensa mayoría de la tabla es **relleno vacío**: pares `a=0xFFFFFFFF, b=0x00000000` — bloques enteros de miles de entradas sin datos.
+- Intercalados con el relleno hay **entradas reales dispersas**, cuyo primer campo (`a`) **crece monótonamente** a medida que se avanza por la tabla: `0x0019e58e → 0x00248c06 → 0x007388ae → 0x00762788 → 0x007f8e9a → 0x00a719cc → ... → 0x01a66160 → ...` — nunca decrece. El segundo campo (`b`) en estas entradas reales es un valor mucho más pequeño (decenas a miles), posiblemente un contador o tamaño asociado a esa clave.
+- Más adelante en la tabla (entrada ~300.000) aparecen bloques de datos con estructura distinta otra vez, y cerca del final (~460.000) reaparece el mismo patrón de **ID + referencia a vecino** ya confirmado en `linked_records` de `.haftlt` (un registro cuyo campo `b` coincide exactamente con el campo `a` del siguiente).
+
+**Interpretación revisada:** esto tiene más pinta de ser una **tabla hash dispersa indexada por clave** (la clave, `a`, creciendo monótonamente en las entradas ocupadas, con huecos vacíos donde no hay clave en ese rango) que de un índice de tiles uniforme y denso. Es un patrón genuinamente distinto al resto de lo visto en el paquete HERE hasta ahora — ni el índice de 6 bytes de `.haftlt`, ni las Secciones 2-4, ni `linked_records` tienen huecos de relleno tan masivos.
+
+**Por qué sigue siendo prometedor pese a la corrección:** una clave creciente y dispersa es exactamente el patrón esperable de un **hash de coordenada de tile** (p. ej. un código Morton/Z-order de lat/lon cuantizado) usado como clave de tabla hash — de hecho más consistente con la teoría NDS real que un simple array denso. Pero confirmar esto requiere aislar qué rango de `a` cubre qué región geográfica, trabajo no completado en esta sesión.
+
 ## Estado: hallazgo estructural, NO decodificación de coordenadas
 
 **Lo que se puede afirmar con confianza:**
@@ -61,11 +74,11 @@ Inspeccionando los bytes alrededor de ese offset calculado, el patrón `a=STRIDE
 - Si el resto de `.hafls` (los ~80 MB restantes, altamente cambiantes entre builds) usa esta tabla como base para deltas de posición de cámaras.
 - La relación exacta entre los dos niveles del índice de `b` (16 altos / 16 bajos) y una jerarquía geográfica real (¿país? ¿región? ¿celda de rejilla?).
 
-## Próximos pasos
+## Próximos pasos (revisados tras la corrección)
 
-1. **Verificar el conteo exacto de tiles** contra el número real de países/regiones de cobertura (47 países en el paquete) o contra alguna potencia de 2 razonable para una rejilla de Europa.
-2. **Cruzar los valores del índice de dos niveles contra el bounding-box conocido de Europa** (`lon≈±1.40625°` ya se había visto como límite de tile en sesiones anteriores — comprobar si estas ~464K entradas, divididas en su jerarquía, producen esa misma granularidad).
-3. **Examinar qué hay exactamente en el offset `0x108 - 0x30`** (antes del ramp-up) para ver si hay un header propio de esta sub-tabla con un total de tiles o bounding-box explícito en grados/microgrados.
-4. Una vez haya candidatos de bounding-box por tile, repetir el cruce contra las 759 coordenadas reales de la DGT — esta vez con una prueba de permutación desde el principio (lección aprendida de la sesión de hoy).
+1. **Mapear los límites reales de cada tramo** de la tabla dispersa: dónde termina el ramp-up (~entrada 24), dónde empieza/termina cada racha de relleno vacío, dónde aparece el segundo tipo de datos (~entrada 300.000) y el patrón ID+vecino (~entrada 460.000). Sin esto, cualquier hipótesis de coordenada mezclará tipos de contenido distintos, como ya pasó una vez en esta misma sesión con la corrección de `haftlt`.
+2. **Aislar solo las entradas "reales" (no vacías, no ID+vecino) y extraer su clave `a`** — comprobar si decodificada como Morton/Z-order (intercalado de bits de lat/lon cuantizados) cae dentro del bounding-box de Europa.
+3. Una vez haya candidatos de coordenada, repetir el cruce contra las 759 coordenadas reales de la DGT **con prueba de permutación desde el principio** (lección aprendida hoy con `SPEED_PATCH.db` y la coordenada local escalada — no fiarse de un conteo bruto de coincidencias).
+4. Alternativa más barata: en vez de seguir caracterizando esta tabla a ciegas, comparar esta misma región entre las builds `251204`/`260128` (aunque la mayor parte del fichero cambia, quizá los tramos de relleno vacío sean estables y ayuden a acotar límites de sección con más precisión que el análisis de una sola build).
 
 Related: [`docs/haftlt_build_diff_260128.md`](haftlt_build_diff_260128.md), [`.claude/memory/haftlt_format.md`](../.claude/memory/haftlt_format.md), [`.claude/memory/project_radar_db.md`](../.claude/memory/project_radar_db.md)
