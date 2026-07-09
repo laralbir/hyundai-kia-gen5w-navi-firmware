@@ -1,0 +1,29 @@
+Copyright (c) 2026 laralbir
+
+All rights reserved.
+
+This repository documents original reverse-engineering research and analysis
+of third-party firmware. It is made public for transparency and educational
+reference only. No rights beyond those explicitly listed below are granted.
+
+PERMITTED:
+  - Modification: you may modify your own local copy of the source code
+    and documentation for personal study purposes.
+
+NOT PERMITTED:
+  - Commercial use: no commercial exploitation of this repository or any
+    derivative of it, in whole or in part, is authorized.
+  - Distribution: redistribution of this repository or any derivative of
+    it, in original or modified form, is not authorized.
+  - Private use: use of this repository or any derivative of it, including
+    internal or undisclosed use, is not authorized.
+  - Patent use: no patent license, express or implied, is granted by this
+    license or by any contribution to this repository. All patent rights
+    are expressly reserved.
+
+DISCLAIMER:
+THIS REPOSITORY IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE
+USE OF THIS REPOSITORY.
