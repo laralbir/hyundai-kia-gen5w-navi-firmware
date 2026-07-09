@@ -216,3 +216,40 @@ Bélgica (el país de mayor cambio real, 2.35%) es el único con crecimiento en 
 **Detalle completo:** [`docs/haftlt_build_diff_260128.md`](../../docs/haftlt_build_diff_260128.md) sección "Resultado 5". Extracción automatizada ya integrada en `tools/haftlt_parser/parse_haftlt.py` (`street_names.csv`, `linked_records.csv`).
 
 **Próximo paso de mayor valor:** usar el caso dirigido de Bélgica (183 nombres + 201 registros nuevos, mucho menos ruido que los ~4 meses completos de otras regiones) para intentar de nuevo la conexión nombre↔registro con otros anclajes (offset relativo distinto, índice directo, o relación inversa).
+
+---
+
+## Sesión 2026-07-09 (continuación 2) — cruce contra SPEED_PATCH.db (LINK_ID) — REFUTADO, con corrección metodológica importante
+
+**Pregunta del usuario:** ¿los nombres de calle o los registros de 16 bytes de `linked_records` tienen relación con `SPEED_PATCH.db` (que usa `LINK_ID` como clave)?
+
+Se probaron los 4 posibles `u32` LE dentro de cada registro de 16 bytes (offsets 0, 4, 8, 12) contra los 7.100.825 `LINK_ID` distintos de `SPEED_PATCH.db` (BEL, 7.875 registros). Primeros resultados parecían prometedores (offset 8: 29,6% de aciertos; offset 4: ratio 10,63x sobre la densidad local) — **ambos resultaron ser artefactos de medir mal la línea base**.
+
+**Corrección metodológica clave:** los `LINK_ID` de HERE **no están distribuidos uniformemente** en su rango (736–153.433.402) — hay tramos con densidad real de hasta 29% y otros con densidad mucho menor. Comparar la tasa de acierto contra la densidad **global** (4,63%) en vez de la densidad **local** (calculada solo dentro del rango real que cubren los candidatos) produce falsas señales de "enriquecimiento" que desaparecen al corregir:
+
+| Offset probado | Rango de candidatos | Tasa observada | Densidad local real | Ratio corregido |
+|---|---|---|---|---|
+| 0 (f0+f1) | 19.666.176–63.493.294 | 4,94% | 5,23% | 0,94x |
+| 4 (f2+f3) | filtrado a valores <153.433.402 | 4,89% | 4,63% | 1,06x |
+| 8 (f4+f5) | 921.582–2.283.620 | 29,60% | 29,34% | 1,01x |
+| 12 (f6+f7) | 17.823.179–18.534.924 | 7,31% | 7,20% | 1,02x |
+
+Los 4 offsets dan ratio ≈1,0x tras la corrección — **sin relación con `LINK_ID` en ninguna interpretación probada.** Además, offset 4 combina `f2`+`f3`, que ya sabíamos que son referencias a registros vecinos (no un ID real) — los valores "candidatos" resultantes eran una secuencia artificial y regular (131072, 196609, 262146...), confirmando que ni siquiera era una prueba con sentido semántico.
+
+**⚠️ Revisar con esta corrección el hallazgo de la sesión 2026-06-30** ("Test del cruce Link ID — resultado INCONCLUSO", en [[haftlt-format]]): esa prueba comparó 6,46-6,50% contra una densidad **global** de 4,56-4,63% para Secciones 3/4 de España. Dado lo aprendido hoy, es muy probable que ese "1,4x" también sea un artefacto de rango — pendiente de recalcular con densidad local antes de considerarlo evidencia de nada.
+
+**Conclusión:** SPEED_PATCH.db (límites de velocidad por segmento) y la base de datos de cámaras (`haftlt`) parecen ser sistemas de indexación independientes — al menos no comparten `LINK_ID` de forma directa y numéricamente simple en los campos probados hasta ahora.
+
+---
+
+## Sesión 2026-07-09 (continuación 3) — coordenada local escalada por país, probada y REFUTADA con prueba de permutación
+
+**Hipótesis nueva:** dado que `f4`/`f6` de `linked_records` usan casi todo el rango de un `u16` (0-65.535) y son casi únicos/estables por registro, podrían codificar una coordenada **local, escalada linealmente al bounding-box del país** (lat = LAT_MIN + (f4/65535)×rango_lat, lon = LON_MIN + (f6/65535)×rango_lon) — algo nunca probado antes (sesiones previas solo probaron WGS84 absoluto o NDS de rango mundial).
+
+**Método:** se descargó de nuevo el dataset DGT (759 radares reales, ver [[reference_dgt_radar_dataset]]) y se probaron las 56 combinaciones posibles de (campo→lat, campo→lon) de los 8 campos de `linked_records` de España (23.528 registros) con tolerancia ~1,1 km. La mejor combinación bruta (`f4→lat, f6→lon`) dio 52-80 coincidencias (según definición exacta de "coincidencia") — parecía prometedor a primera vista.
+
+**Prueba de significancia (lección aplicada de la refutación de SPEED_PATCH.db):** en vez de comparar contra una densidad teórica, se hizo una **prueba de permutación** — barajar los valores de `f6` entre registros (mismos valores, misma distribución marginal, rompe cualquier relación conjunta real con `f4`) y repetir el conteo de coincidencias 200 veces. Resultado real (52) cayó en el **percentil 90 de la distribución de controles barajados** (p=0,900, media de controles=63,4) — **peor que la mayoría de permutaciones aleatorias**. No hay señal; el resultado bruto de 52-80 solo parecía alto por no compararlo contra un control adecuado.
+
+**Conclusión:** `f4`/`f6` no codifican una coordenada lineal local simple. Sumado a los resultados anteriores de esta sesión (sin conexión a nombres de calle, sin conexión a `LINK_ID`), `linked_records` sigue siendo una tabla completamente estructurada (ID persistente, referencias a vecinos, campos de grupo) pero **sin ningún significado semántico decodificado más allá de su propia topología interna**.
+
+**Lección metodológica reforzada:** cualquier test de "¿este campo es una coordenada/ID real?" en este proyecto debe pasar por una prueba de significancia contra un control aleatorio o baraiado — nunca comparar el conteo bruto de coincidencias contra una intuición o una densidad teórica sin verificar.
