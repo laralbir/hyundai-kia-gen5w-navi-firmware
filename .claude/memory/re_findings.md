@@ -66,6 +66,7 @@ metadata:
    - `DecryptToPIPE` es el binario del HU que actúa de `update_agent` — reside en `/Bin/` del HU
 5. **SPEED_PATCH.db** (dentro del ZIP de mapas) — SQLite accesible directamente con `sqlite3`.
 6. **Frontkey MCU bins** — accesibles, analizables con Ghidra + ARM Cortex-M.
+7. **Comparación entre builds sin clave ("prefix/suffix leak")** — al recibir una nueva versión, comparar `cmp` offset del primer byte divergente entre builds del mismo fichero (mismo tamaño, checksum `.ver` distinto) revela si el cambio es solo un trailer de firma (~16.417 bytes, payload idéntico) o contenido real. Ver `docs/diff_version_260128.md` y [[version-diff-260128]].
 
 ## Componentes de software confirmados (COPYRIGHT.TXT)
 

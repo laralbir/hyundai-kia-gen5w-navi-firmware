@@ -400,4 +400,60 @@ Alternativa práctica ya validada para el objetivo final (avisos de velocidad/ra
 `SPEED_PATCH.db` (ver [[speed_patch_workflow]]) sí está confirmado y operativo — permite modificar
 límites de velocidad por tramo sin tocar el formato binario propietario haftlt.
 
+---
+
+## Diff binario contra segunda build real (260128) — sesión 2026-07-09
+
+Apareció una segunda descarga completa del paquete (`YB_22.EUR.S5W_L.001.001.260128`, mapas HERE `18.52.70.012.632.5`, datos `2025-11-22`) junto a la `251204` del repo (datos `2025-07-16`) — ~4 meses de diferencia real, mismo formato, mismo país. Primera vez que se dispone de dos builds reales para diff dirigido (el paso pendiente #3 de la sección anterior). Análisis completo: [`docs/haftlt_build_diff_260128.md`](../../docs/haftlt_build_diff_260128.md).
+
+**Correcciones a la tabla de cabecera de arriba:**
+- `0x40` **NO es constante** — es un contador de versión de build que incrementa +1 por release (`0x00031706`→`0x00031707`). Coincidía en muestras previas por pertenecer al mismo build.
+- `0x4C` **NO es constante** — codifica literalmente la fecha de `DATA_VERSION` en decimal `YYYYMMDDHH` (`2025071509`→`2025112102`). Da lectura directa de la fecha sin parsear el string ASCII.
+- `0x80` (crc/hash) cambia de forma dependiente del contenido, fórmula aún no resuelta.
+
+**Localización de zonas de crecimiento real entre builds:**
+- Índice (`0x200`→sec1_start) y Sección 1: **crecimiento cero** en las 3 muestras (AUT/DNK/SPN) pese a 4 meses de datos reales → descartadas definitivamente como almacén de cámaras.
+- Secciones 2+3+4: **tamaño exactamente constante** entre builds pero ~90% de bytes distintos → consistente con IDs secuenciales que se renumeran en cascada ante cualquier inserción aguas arriba (no son la fuente real, es ruido de renumeración).
+- Las únicas dos regiones que **sí crecen** en tamaño: región media (`sec1_end`→sec2_start) y región cola (`sec4_end`→EOF) — candidatas reales a contener las cámaras nuevas.
+- En la región cola de AUT se encontró una subtabla muy regular: grupos de `u16+u16` donde el campo bajo incrementa en pasos de `0x80` y el alto en saltos de `0x800` — forma de tabla de distancias/umbrales cuantizados (hipótesis: parámetros de la progresión de alerta LOW/MID/HIGH o de Section Control), no de coordenadas GPS.
+
+**Todos los 13 países crecieron entre builds, ninguno decreció** (BEL +2.35%, el resto +0.07–0.14%) — coherente con radares que solo se añaden. Confirma indirectamente que SÍ hay cámaras nuevas codificadas en algún lugar del fichero entre estas dos fechas, solo falta localizar el registro exacto.
+
+**Sigue sin resolverse:** el registro de cámara completo (posición + atributos) insertable de forma segura. Ver docs para próximos pasos recomendados (diff de ventana más corta, repetir en BEL, diff de `.hafls`).
+
+**Mapa visual de bytes:** `docs/haftlt_build_diff_260128.md` incluye un mapa de bytes coloreado por región (`docs/assets/haftlt_bytemap_AUT_251204.png` / `_260128.png`) que muestra visualmente las dos únicas bandas que crecen entre builds — útil como referencia rápida antes de reanudar la investigación.
+
+## Tabla de nombres de calle + tabla de 16 bytes (sesión 2026-07-09) — mayor avance de la investigación
+
+Buscando si el `.haftlt` era un contenedor de otros ficheros (no lo es — verificado: cero `PK\x03\x04` de ZIP, solo firmas falsas positivas de IDs/texto coincidentes), se encontró texto legible real dentro de la región cola: nombres de calle/carretera en UTF-8.
+
+**Formato confirmado byte a byte:** Pascal-string `[u8 length][bytes UTF-8, sin terminador]`, empaquetadas consecutivamente. Verificado con `"Carretera del Prat"` (prefijo `0x12`=18) seguido de `"Calle del Doctor Tolosa Latour"` (prefijo `0x1e`=30) — longitudes exactas.
+
+**Detector genérico** (sin offsets hardcodeados por país, busca una cadena de ≥15 Pascal-strings consecutivas válidas) confirmado en los 4 países:
+
+| País | nombres (251204→260128) | registros de 16B (251204→260128) |
+|---|---|---|
+| AUT | 9.849 → 9.849 | 12.139 → 12.139 |
+| BEL | 7.563 → **7.746 (+183)** | 7.875 → **8.076 (+201)** |
+| DNK | 23.067 → 23.067 | 9.081 → 9.081 |
+| SPN | 20.290 → 20.290 | 23.528 → 23.528 |
+
+Justo tras la tabla de nombres: `[u32 record_count][12B padding][record_count × registro de 16B]`. Conteo verificado aritméticamente contra el tamaño real del fichero (holgura 0–2 bytes) en los 4 países.
+
+**Bélgica es el único con crecimiento real en esta tabla** (coherente con ser el país de mayor delta total, 2.35%). Los 183 nombres nuevos son calles belgas genuinas (`"Bd. Louis Mettewie/Mettewielaan"`) — **no todas al final de la lista** (aparecen en posiciones 0-9 y también ~7100-7740), sugiriendo reordenación/reindexación en cada build, no append puro.
+
+**Hipótesis probada y REFUTADA:** `f0` del registro de 16 bytes como offset (relativo al inicio de la tabla de nombres) hacia su cadena asociada — 0/30 aciertos contra las 20.290 cadenas reales de SPN. La conexión nombre↔registro sigue sin resolverse. Patrones observados sin confirmar: `f1`/`f5`/`f7` casi constantes en bloques (posible ID de grupo/categoría); `f2`/`f3` alternan un valor real con centinela `0xFFFF`, valor real ronda el índice del propio registro (mismo patrón de ID secuencial + slot alternante que Secciones 3-4, aquí a nivel u16).
+
+**Extracción automatizada:** `tools/haftlt_parser/parse_haftlt.py` ahora genera `street_names.csv` y `linked_records.csv` para cualquier país sin intervención manual (funciones `find_string_pool`, `parse_string_pool`, `try_parse_linked_records`).
+
+**Por qué importa:** primer texto legible con significado geográfico de toda la investigación (3+ sesiones previas nunca encontraron nada así). No es la coordenada de una cámara, pero es la pista más prometedora hasta ahora — la tabla de 16 bytes al lado casi con toda seguridad conecta con algo posicional dado el patrón de IDs, solo falta encontrar cómo.
+
+---
+
+**Herramientas de sesión 2026-07-09 (todas en `tools/`, código sí commiteado, datos/salida no):**
+- `tools/haftlt_viewer/generate_viewer.py` — visualizador HTML interactivo (minimapa + hexdump + inspector u8/u16/u32) para un país, comparando dos builds.
+- `tools/haftlt_parser/parse_haftlt.py` — desempaqueta índice + Secciones 1–4 a CSV/JSON; con `--other` localiza los rangos exactos de las dos zonas candidatas.
+- **Ojo con `*_diverging.bin`/región "candidata"**: su tamaño NO es "bytes nuevos" — es todo el rango tras el prefijo común, y la mayoría es contenido antiguo renumerado (mismo fenómeno que Secciones 2-4). El tamaño real de contenido nuevo es `header.json.growth_zones.true_size_delta_bytes` (p.ej. AUT: rango marcado 1,045,808 B pero delta real solo 2,248 B). Aislar el registro exacto dentro de ese rango sigue siendo el paso pendiente.
+- Ya ejecutado contra AUT/BEL/DNK/SPN (ambas builds); `.haftlt` extraídos en `HU/images/navi_eu/haftlt_extracted/{251204,260128}/`, salida parseada en `HU/images/navi_eu/haftlt_parsed/` — ambas rutas fuera de git (bajo `HU/`), no hace falta re-extraer del ZIP de 17GB en sesiones futuras.
+
 Related: [[haf-format]] · [[project-radar-db]] · [[re-findings]]

@@ -30,7 +30,9 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 │   ├── estructura_ficheros.md          Árbol completo de ficheros con tamaños, magic bytes y notas de RE
 │   ├── analisis_mapas_here.md          Análisis técnico detallado del paquete de mapas HERE
 │   ├── gen5w_exploit_ecosystem.md      Cadena de exploit para descifrar OTA + persistencia en el HU
-│   └── engineering_mode.md             Análisis de acceso a Engineering Mode (bloqueos SOP, PIN QML, rutas alternativas)
+│   ├── engineering_mode.md             Análisis de acceso a Engineering Mode (bloqueos SOP, PIN QML, rutas alternativas)
+│   ├── diff_version_260128.md          Comparación ciphertext-level entre builds 251204 y 260128
+│   └── haftlt_build_diff_260128.md     Diff binario dirigido de .haftlt entre dos builds reales — localización de zonas de radares
 └── tools/                              Herramientas y guías operativas para RE del HU
     ├── README.md                       Guía maestra paso a paso (leer primero)
     ├── setup.sh                        Clona todos los repos gen5w y verifica dependencias
@@ -43,9 +45,15 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
     ├── phase3_patch/                   Parche del rootfs (wideopen + Engineering Mode bypass)
     │   ├── README.md
     │   └── patch.sh                   Wrapper para update-patcher
-    └── phase4_explore/                 Exploración y análisis del rootfs descifrado
-        ├── README.md
-        └── explore.sh                 Extrae y analiza el rootfs localmente
+    ├── phase4_explore/                 Exploración y análisis del rootfs descifrado
+    │   ├── README.md
+    │   └── explore.sh                 Extrae y analiza el rootfs localmente
+    ├── haftlt_viewer/                  Visualizador interactivo del fichero de radares (.haftlt)
+    │   ├── README.md                   Uso y aviso: la salida NO se commitea (embebe datos HERE)
+    │   └── generate_viewer.py         Genera el HTML: minimapa, hex dump e inspector u8/u16/u32
+    └── haftlt_parser/                  Desempaquetado estructurado del .haftlt (CSV/JSON)
+        ├── README.md                   Uso y aviso sobre *_diverging.bin (no son "bytes nuevos")
+        └── parse_haftlt.py            Vuelca índice + Secciones 1-4 a CSV; --other localiza zonas candidatas
 ```
 
 > Los ficheros binarios de gran tamaño (imágenes de firmware, mapas, paquetes VR) están excluidos mediante `.gitignore`.
@@ -88,10 +96,12 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 - [Análisis técnico de los mapas HERE](docs/analisis_mapas_here.md) — formato HAF, esquema de `SPEED_PATCH.db`, bases de datos de radares, datos ADAS de horizonte electrónico, diccionarios VR, assets de interfaz e inventario de software de terceros.
 - [Ecosistema de exploits gen5w](docs/gen5w_exploit_ecosystem.md) — cadena completa para descifrar OTA: exploit USB (`navi_extended`), extracción de `DecryptToPIPE` + `decryption_key.der`, Docker `update_decryptor`, patcher de persistencia y entorno `gen5w-docker`.
 - [Engineering Mode](docs/engineering_mode.md) — análisis de los dos bloqueos en firmware MASS_PRODUCT (`checkSOPVersion()` + PIN QML), PINs documentados, rutas alternativas de acceso (UART, GDS, firmware antiguo) y procedimiento recomendado.
+- [Comparación de versiones 251204 vs 260128](docs/diff_version_260128.md) — análisis ciphertext-level de la nueva versión descargada: técnica de comparación entre builds sin clave, ficheros sin cambio real (frontkey, VR fixed, módems) vs. con cambio real de contenido (rootfs, update, GUI, mapas).
+- [Diff binario de .haftlt entre builds reales](docs/haftlt_build_diff_260128.md) — comparación dirigida de la base de radares por país entre las versiones de mapas `18.49.56` y `18.52.70` (~4 meses de diferencia real): descarta índice y Sección 1 como almacén de cámaras, localiza las dos únicas zonas del fichero que crecen entre builds, corrige dos campos de cabecera mal etiquetados como constantes, y confirma una tabla de nombres de calle en texto UTF-8 real (primer texto legible de toda la investigación) en los 4 países probados.
 
 ### Investigaciones en profundidad
 
-- [Formato binario HAFTLT](.claude/memory/haftlt_format.md) — ingeniería inversa completa del formato `VIT_EUR_*.haftlt`: cabecera, tabla índice de 6 bytes, registros de cámara GPS de 12 bytes, encoding de coordenadas HERE NDS (confirmado), secciones 1–4, código Python para extraer cámaras por bounding box, y muestra de 138 cámaras españolas localizadas.
+- [Formato binario HAFTLT](.claude/memory/haftlt_format.md) — ingeniería inversa completa del formato `VIT_EUR_*.haftlt`: cabecera, tabla índice de 6 bytes, secciones 1–4. ⚠️ El encoding de coordenadas GPS/cámara reportado en sesiones antiguas quedó **refutado** tras contraste con datos reales (radares DGT + grafo `.hafr`); el registro de cámara aún no está aislado, ver también el diff binario contra la segunda build real.
 - [Análisis de la base de datos de radares](.claude/memory/project_radar_db.md) — estado del RE: qué archivos contienen realmente los datos de cámaras (`haftlt`, `hafls`), por qué `hafcc` no son cámaras GPS, mapa de viabilidad de modificación (trivial → muy difícil), y próximos pasos ordenados por factibilidad.
 - [Workflow SPEED_PATCH.db](.claude/memory/speed_patch_workflow.md) — procedimiento operativo completo para modificar límites de velocidad: extracción del ZIP, operaciones SQLite, reempaquetado, recálculo de MD5 y CRC32 signed int32 para `Rio_MY22_EU.ver`.
 

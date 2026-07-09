@@ -182,3 +182,37 @@ unzip -p "$ZIP" "Data/Nation/EUR/MAP/HAFTLT/VIT_EUR_SPN.haftlt" > "$SCRATCHPAD/V
 unzip -p "$ZIP" "Data/Nation/EUR/MAP/HAFTLT/VIT_EUR_BEL.haftlt" > "$SCRATCHPAD/VIT_EUR_BEL.haftlt"
 unzip -p "$ZIP" "Data/Nation/EUR/MAP/HAFTLT/VIT_EUR_DNK.haftlt" > "$SCRATCHPAD/VIT_EUR_DNK.haftlt"
 ```
+
+---
+
+## Sesión 2026-07-09 — diff dirigido contra segunda build real (260128)
+
+**Why:** El paso #2 de "próximos pasos" (arriba) — obtener una build de mapas distinta para diff binario — dejó de ser hipotético: apareció una segunda descarga completa (`260128`, datos HERE `2025-11-22`) junto a la `251204` del repo (datos `2025-07-16`). Primer diff dirigido real de la investigación.
+
+**Resultado resumen** (detalle completo en [`docs/haftlt_build_diff_260128.md`](../../docs/haftlt_build_diff_260128.md) y sección nueva de [[haftlt-format]]):
+
+- Los 13 países crecieron en tamaño entre builds (nunca decrecieron) → confirma que sí hay cámaras nuevas codificadas en el fichero en esta ventana de 4 meses.
+- Índice y Sección 1: crecimiento cero → descartados definitivamente como almacén de cámaras.
+- Secciones 2-4: tamaño constante pero ~90% de bytes distintos → ruido de renumeración de IDs secuenciales, no la fuente real.
+- Dos zonas SÍ crecen: región media (`sec1_end`→sec2_start) y región cola (`sec4_end`→EOF) — candidatas reales, aún sin registro completo aislado.
+- Corregidos 2 campos de cabecera mal etiquetados como "constantes" en sesiones previas (`0x40`=contador de versión de build, `0x4C`=fecha DATA_VERSION en decimal).
+
+**How to apply:** Al retomar esta investigación, no repetir el escaneo de coordenadas GPS por fuerza bruta (agotado y refutado 2 veces). Continuar desde la localización de zonas de crecimiento — el siguiente paso de mayor valor es conseguir una ventana temporal más corta entre builds (menos cámaras mezcladas = diff más limpio) o repetir el mismo análisis en `.hafls`.
+
+**Estado del mapa de viabilidad (actualización):** "Añadir nuevas cámaras" sigue en **Muy difícil**, pero con el bloqueante parcialmente reducido: ya no es "formato 12-byte + Link IDs no resueltos" en abstracto — ahora hay dos regiones de fichero concretas y acotadas donde buscar, en vez de todo el fichero.
+
+---
+
+## Sesión 2026-07-09 (continuación) — tabla de nombres de calle: primer texto legible de toda la investigación
+
+Comprobación de si `.haftlt` es un contenedor (ZIP/TAR) de otros ficheros: **no lo es** — verificado sin ambigüedad (cero firmas `PK\x03\x04` de ZIP en todo el fichero; los "hits" de firmas que aparecían eran falsos positivos de IDs secuenciales y texto coincidente).
+
+Pero esa comprobación llevó a encontrar, dentro de la región cola, una **tabla de nombres de calle en texto UTF-8 real** — Pascal-strings `[u8 length][texto]`, formato verificado byte a byte, con detector genérico confirmado en los 4 países (AUT 9.849, BEL 7.563→7.746, DNK 23.067, SPN 20.290 nombres). Justo después: una tabla de registros de 16 bytes con conteo verificado aritméticamente (AUT 12.139, BEL 7.875→8.076, DNK 9.081, SPN 23.528).
+
+Bélgica (el país de mayor cambio real, 2.35%) es el único con crecimiento en ambas tablas entre builds — 183 nombres nuevos + 201 registros nuevos, coherente y verificable (nombres de calle belgas genuinos).
+
+**Se probó y refutó** la hipótesis obvia de conexión: `f0` del registro de 16 bytes como offset hacia su nombre de calle — 0/30 aciertos. La relación nombre↔registro sigue abierta, pero por primera vez hay **texto legible con significado geográfico real** para anclar futuras hipótesis, y una tabla de tamaño fijo justo al lado con un patrón de ID+slot-alternante que en el resto del fichero siempre ha señalado datos "vivos" (no de relleno).
+
+**Detalle completo:** [`docs/haftlt_build_diff_260128.md`](../../docs/haftlt_build_diff_260128.md) sección "Resultado 5". Extracción automatizada ya integrada en `tools/haftlt_parser/parse_haftlt.py` (`street_names.csv`, `linked_records.csv`).
+
+**Próximo paso de mayor valor:** usar el caso dirigido de Bélgica (183 nombres + 201 registros nuevos, mucho menos ruido que los ~4 meses completos de otras regiones) para intentar de nuevo la conexión nombre↔registro con otros anclajes (offset relativo distinto, índice directo, o relación inversa).

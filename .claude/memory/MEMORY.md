@@ -4,8 +4,9 @@
 - [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets
 - [VR Engine](vr_engine.md) — Motor LPTE TTS v1.5.1 (Cerence), 24 idiomas EU / 1 AU (coreano), estructura interna de mango-vr_fixed.tar.gz
 - [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU ARM Cortex-M, estrategia de RE recomendada
-- [Radar DB Analysis](project_radar_db.md) — Ningún archivo HERE da coordenadas GPS por fuerza bruta (probado contra 759 radares DGT reales + grafo de rutas 921MB); NDS es delta-relativo a tile, no absoluto
-- [HAFTLT Format](haftlt_format.md) — Cabecera/secciones 1-4 de .haftlt confirmadas; ⚠️ TODO el encoding GPS/cámara de sesiones anteriores REFUTADO (incl. test masivo en .hafr)
+- [Radar DB Analysis](project_radar_db.md) — Fuerza bruta GPS agotada y refutada; diff 260128 localiza tabla de nombres de calle (texto UTF-8 real, 4 países) + tabla de 16B ligada, conexión nombre↔registro aún sin resolver
+- [HAFTLT Format](haftlt_format.md) — Cabecera/secciones 1-4 confirmadas; NO es contenedor ZIP/TAR; tabla de nombres de calle (Pascal-strings) y tabla de 16B confirmadas en 4 países vía tools/haftlt_parser
 - [Speed Patch Workflow](speed_patch_workflow.md) — Workflow operativo: modificar SPEED_PATCH.db + reempaquetar ZIP + actualizar MD5 y CRC32 en .ver
-- [Gen5W Exploit Ecosystem](gen5w_exploit.md) — Cadena completa de descifrado: navi_extended (USB exploit) → DecryptToPIPE + key.der → update_decryptor Docker → rootfs descifrado
+- [Gen5W Exploit Ecosystem](gen5w_exploit.md) — Cadena completa de descifrado: navi_extended (USB exploit) → DecryptToPIPE + key.der → update_decryptor Docker → rootfs descifrado; comunidad más amplia mapeada (cantcs, Helloyunho, XDA) — ninguna decodifica el formato de radares HERE
 - [Engineering Mode](engineering_mode_notes.md) — SoC x86-64 confirmado; Engineering Mode bloqueado por checkSOPVersion() en MASS_PRODUCT; PIN QML enterMenu==21/11; rutas de acceso alternativas
+- [Version Diff 260128](version_diff_260128.md) — Comparación 251204 vs 260128: técnica prefix/suffix leak sin clave, ficheros sin cambio real (frontkey, VR fixed, módems) vs con cambio real (rootfs, update, mapas)
