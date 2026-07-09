@@ -2,24 +2,44 @@ Copyright (c) 2026 laralbir
 
 All rights reserved.
 
-This repository documents original reverse-engineering research and analysis
-of third-party firmware. It is made public for transparency and educational
-reference only. No rights beyond those explicitly listed below are granted.
+This repository contains original reverse-engineering research, documentation,
+and tooling authored by the copyright holder, describing and analyzing
+third-party firmware (Kia/Hyundai head unit and related components). It is
+made public for transparency and educational reference only. This license
+governs only the original content of this repository (documentation, scripts,
+and analysis authored by the copyright holder); it does not grant, and shall
+not be construed to grant, any right, title, license, or interest in or to
+any third-party firmware, software, trademarks, or other copyrighted material
+described, referenced, or analyzed herein, which remain the sole property of
+their respective owners. No rights beyond those explicitly listed below are
+granted.
 
 PERMITTED:
+  - Reproduction for personal use: you may clone or download this repository
+    to create a single local copy, solely as a prerequisite for the
+    modification permitted below.
   - Modification: you may modify your own local copy of the source code
-    and documentation for personal study purposes.
+    and documentation for personal study purposes. This is the only form
+    of private use permitted under this license.
 
 NOT PERMITTED:
   - Commercial use: no commercial exploitation of this repository or any
     derivative of it, in whole or in part, is authorized.
   - Distribution: redistribution of this repository or any derivative of
     it, in original or modified form, is not authorized.
-  - Private use: use of this repository or any derivative of it, including
-    internal or undisclosed use, is not authorized.
+  - Private use: any use of this repository or any derivative of it, other
+    than the personal, non-distributed modification expressly permitted
+    above, including any other internal or undisclosed use, is not
+    authorized.
   - Patent use: no patent license, express or implied, is granted by this
     license or by any contribution to this repository. All patent rights
     are expressly reserved.
+
+TERMINATION:
+Any use of this repository or any derivative of it that violates the terms
+above automatically and immediately terminates the limited permissions
+granted herein, without prejudice to any other remedy available to the
+copyright holder.
 
 DISCLAIMER:
 THIS REPOSITORY IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
