@@ -74,6 +74,19 @@ La caracterización inicial de arriba se basó en una muestra de solo ~30 entrad
 - Si el resto de `.hafls` (los ~80 MB restantes, altamente cambiantes entre builds) usa esta tabla como base para deltas de posición de cámaras.
 - La relación exacta entre los dos niveles del índice de `b` (16 altos / 16 bajos) y una jerarquía geográfica real (¿país? ¿región? ¿celda de rejilla?).
 
+## ⚠️ Segunda corrección: los dos bloques densos también son patrones genéricos, no datos geográficos
+
+Escaneo completo de las 464.688 entradas (no solo muestreo): la tabla se divide en 3 categorías (`empty`=79.504, `ramp`=1.247, `real`=383.937). Los dos tramos "reales" más largos —`[116.155:320.671]` (204.516 entradas) y `[320.674:464.688]` (144.014 entradas)— cubren el 75% de la tabla sin huecos, y en un primer vistazo su clave `a` parecía crecer monótonamente (falso: eso era un artefacto del muestreo cada 200 entradas, que solo capturaba una sub-secuencia local creciente).
+
+Al examinar el bloque `[116.155:320.671]` entrada a entrada, resulta ser **dos patrones genéricos entrelazados en proporción 2:1**, ambos ya vistos en otros ficheros de este mismo paquete durante esta sesión:
+
+1. **Tabla de umbrales ×128** (36.805 entradas, 18%) — el mismo patrón exacto encontrado antes en la región cola de `VIT_EUR_AUT.haftlt` y justo antes de la tabla de nombres en `VIT_EUR_BEL.haftlt`: un valor pequeño (<4096) junto a un valor múltiplo de 128.
+2. **Contador pequeño + cuenta variable** (167.711 entradas, 82% del resto) — un valor que incrementa suavemente (deltas 4-20) junto a un valor pequeño (0-12) — variante del mismo tipo de tabla de cuantización/distancia.
+
+**Conclusión revisada, más importante que el hallazgo original:** los patrones "prometedores" que van apareciendo repetidamente en distintos ficheros y offsets de este paquete (tabla de tombstones/relleno vacío, tabla de umbrales ×128, ID+referencia bidireccional a vecino) son con toda probabilidad **primitivas genéricas de serialización de la toolchain de HERE** — reutilizadas en múltiples contextos (`.haftlt`, `.hafls`) para propósitos distintos — no estructuras específicas de posición de cámara. Ni la tabla dispersa completa de `.hafls`, ni sus dos sub-patrones, muestran nada con forma de coordenada geográfica tras filtrar el ruido reconocido.
+
+**Esto tiene una implicación práctica importante:** seguir escaneando bytes en busca de "el patrón que parece prometedor" sin poder ejecutar el parser real (`appnavi`, cifrado) tiene ya rendimientos claramente decrecientes — es la tercera vez en esta sesión que un patrón visualmente interesante resulta ser la misma familia de estructura genérica ya catalogada. El camino que queda con mayor probabilidad de éxito real es descifrar `appnavi` (exploit físico `gen5w`) para leer cómo el código real interpreta estos contenedores genéricos, en vez de seguir infiriendo semántica por inspección visual.
+
 ## Próximos pasos (revisados tras la corrección)
 
 1. **Mapear los límites reales de cada tramo** de la tabla dispersa: dónde termina el ramp-up (~entrada 24), dónde empieza/termina cada racha de relleno vacío, dónde aparece el segundo tipo de datos (~entrada 300.000) y el patrón ID+vecino (~entrada 460.000). Sin esto, cualquier hipótesis de coordenada mezclará tipos de contenido distintos, como ya pasó una vez en esta misma sesión con la corrección de `haftlt`.

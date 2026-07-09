@@ -129,4 +129,17 @@ Alimenta: **SCC** (crucero predictivo de pendientes), **LKAS** (asistencia de ca
 - **Junction Exit View**: fotos reales de salidas de autopista (funcionalidad premium HERE)
 - **Señales de velocidad**: `GlobalImage/SpeedLimit/speed_limit_0-9.png` + `_red_` (dígitos compuestos en pantalla)
 
-Related: [[project-context]] · [[vr-engine]] · [[file-details]]
+## Catálogo de primitivas genéricas de serialización (sesión 2026-07-09)
+
+Tras analizar en profundidad `.haftlt` (`linked_records`) y `.hafls` (tabla dispersa en offset `0x108`), aparecen **los mismos 3-4 patrones de bajo nivel una y otra vez, en ficheros y offsets totalmente distintos.** Es casi seguro que son primitivas genéricas de la toolchain de serialización de HERE (estructuras de datos reutilizables), no formato específico de cámaras/radares. Catalogarlas aquí para no re-descubrirlas creyendo cada vez que son un hallazgo nuevo:
+
+1. **Slot vacío / tombstone**: `[u32 0xFFFFFFFF][u32 0x00000000]` — relleno en tablas dispersas tipo hash. Visto en la tabla de `0x108` de `.hafls` (79.504 de 464.688 entradas).
+2. **Tabla de umbrales/distancia ×128**: un valor pequeño (<4096) junto a un valor múltiplo exacto de 128 que va incrementando. Visto en la región cola de `VIT_EUR_AUT.haftlt`, justo antes de la tabla de nombres en `VIT_EUR_BEL.haftlt`, y dentro del bloque denso de la tabla de `.hafls` (36.805 entradas). Hipótesis de uso: cuantización de distancia/tiempo (posible relación con la progresión de alerta LOW/MID/HIGH), no confirmada.
+3. **Contador pequeño + cuenta variable**: valor que incrementa suavemente (deltas de un dígito) junto a un valor pequeño (0-15 aprox.) — variante del anterior. Visto en el resto del bloque denso de `.hafls` (167.711 entradas).
+4. **ID + referencia bidireccional a vecino**: un campo que es un ID casi único y estable entre builds, y otro par de campos que apuntan al índice de array del registro anterior/siguiente (con centinela `0xFFFF`/`0xFFFFFFFF` cuando no hay vecino en ese sentido). Visto en `linked_records` de `.haftlt` (confirmado con prueba de solapamiento entre builds) y de nuevo cerca del final de la tabla dispersa de `.hafls`.
+
+**Por qué importa:** cuando aparezca un patrón "interesante" en un fichero HAF nuevo, comprobar primero si encaja con uno de estos 4 antes de tratarlo como hallazgo nuevo — ya ha pasado 3 veces en la misma sesión que un patrón prometedor resultaba ser una de estas primitivas genéricas. Ninguna de las 4, tras inspección, codifica una coordenada geográfica reconocible.
+
+**Implicación para la investigación de radares:** la inspección visual/estadística de bytes sin el parser real (`appnavi`, cifrado con AES) tiene rendimientos claramente decrecientes en este punto — se necesita descifrar el parser real (exploit físico `gen5w`) para saber qué contenedor genérico de estos usa cada feature y con qué semántica exacta, en vez de seguir infiriendo desde fuera.
+
+Related: [[project-context]] · [[vr-engine]] · [[file-details]] · [[haftlt-format]] · [[project-radar-db]]
