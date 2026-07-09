@@ -458,6 +458,10 @@ Usando Bélgica dirigido (único país con cambio real en estas tablas): compara
 
 **No repetir** la prueba de offset/índice simple sin nueva evidencia — está descartada con solidez estadística, no es "no probado todavía". El siguiente paso es buscar una tabla puente (quizá Secciones 2-4, que comparten el patrón ID+vecino) o aceptar que `linked_records` no tiene relación con los nombres.
 
+### `.hafls` — tabla de tiles candidata (nuevo, mismo día)
+
+Tras agotar las hipótesis de conexión nombre↔registro en `.haftlt`, se investigó `.hafls` (capa pan-EU, 84 MB) desde cero — cabecera con layout distinto al de `.haftlt`, sin la misma tabla de nombres. Se encontró en offset `0x108` una tabla muy regular (~464.688 entradas de 8 bytes, stride constante `0x300000`=3.145.728=3MB, esquema de índice de 2 niveles en los 16 bits altos/bajos del segundo campo) que es **idéntica entre builds** — el mejor candidato a "tabla de tile-bases" NDS encontrado en toda la investigación. Aún sin decodificar a coordenadas reales. Detalle completo: [`docs/hafls_tile_table.md`](../../docs/hafls_tile_table.md).
+
 **Secciones 3-4 descartadas como tabla puente estable (mismo día, BEL):** aplicando el mismo método de solapamiento de valores por campo entre builds — Sección 3: jaccard=0,359 (moderadamente inestable, "nuevos" ≈48% del total, muy por encima del crecimiento real de +2,6%). Sección 4: **jaccard=0,000** — de miles de IDs, solo 5 sobreviven entre builds. A diferencia de `linked_records.f0` (97,4% estable), las Secciones 3-4 se **regeneran casi por completo en cada build** — no son identificadores persistentes, son contadores secuenciales que se recalculan desde cero. Confirma (con datos, no solo sospecha) la hipótesis original de "renumeración en cascada" y descarta usarlas como puente hacia los nombres vía coincidencia de ID.
 
 ---

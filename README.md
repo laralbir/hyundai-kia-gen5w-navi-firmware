@@ -32,7 +32,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 │   ├── gen5w_exploit_ecosystem.md      Cadena de exploit para descifrar OTA + persistencia en el HU
 │   ├── engineering_mode.md             Análisis de acceso a Engineering Mode (bloqueos SOP, PIN QML, rutas alternativas)
 │   ├── diff_version_260128.md          Comparación ciphertext-level entre builds 251204 y 260128
-│   └── haftlt_build_diff_260128.md     Diff binario dirigido de .haftlt entre dos builds reales — localización de zonas de radares
+│   ├── haftlt_build_diff_260128.md     Diff binario dirigido de .haftlt entre dos builds reales — localización de zonas de radares
+│   └── hafls_tile_table.md             Tabla de tiles candidata en .hafls (offset 0x108, stride 3MB) — mejor pista de tile-base NDS hasta ahora
 └── tools/                              Herramientas y guías operativas para RE del HU
     ├── README.md                       Guía maestra paso a paso (leer primero)
     ├── setup.sh                        Clona todos los repos gen5w y verifica dependencias
@@ -97,7 +98,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 - [Ecosistema de exploits gen5w](docs/gen5w_exploit_ecosystem.md) — cadena completa para descifrar OTA: exploit USB (`navi_extended`), extracción de `DecryptToPIPE` + `decryption_key.der`, Docker `update_decryptor`, patcher de persistencia y entorno `gen5w-docker`.
 - [Engineering Mode](docs/engineering_mode.md) — análisis de los dos bloqueos en firmware MASS_PRODUCT (`checkSOPVersion()` + PIN QML), PINs documentados, rutas alternativas de acceso (UART, GDS, firmware antiguo) y procedimiento recomendado.
 - [Comparación de versiones 251204 vs 260128](docs/diff_version_260128.md) — análisis ciphertext-level de la nueva versión descargada: técnica de comparación entre builds sin clave, ficheros sin cambio real (frontkey, VR fixed, módems) vs. con cambio real de contenido (rootfs, update, GUI, mapas).
-- [Diff binario de .haftlt entre builds reales](docs/haftlt_build_diff_260128.md) — comparación dirigida de la base de radares por país entre las versiones de mapas `18.49.56` y `18.52.70` (~4 meses de diferencia real): descarta índice y Sección 1 como almacén de cámaras, localiza las dos únicas zonas del fichero que crecen entre builds, corrige dos campos de cabecera mal etiquetados como constantes, y confirma una tabla de nombres de calle en texto UTF-8 real (primer texto legible de toda la investigación) en los 4 países probados.
+- [Diff binario de .haftlt entre builds reales](docs/haftlt_build_diff_260128.md) — comparación dirigida de la base de radares por país entre las versiones de mapas `18.49.56` y `18.52.70` (~4 meses de diferencia real): descarta índice y Sección 1 como almacén de cámaras, localiza las dos únicas zonas del fichero que crecen entre builds, corrige dos campos de cabecera mal etiquetados como constantes, y confirma una tabla de nombres de calle en texto UTF-8 real (primer texto legible de toda la investigación) en los 4 países probados. La conexión entre esos nombres y los registros de posición se probó exhaustivamente (offsets, índices, cruce con `LINK_ID` de `SPEED_PATCH.db`, coordenada local escalada) y quedó refutada en todos los casos con pruebas de significancia rigurosas.
+- [Tabla de tiles en .hafls](docs/hafls_tile_table.md) — análisis de cabecera fresco de la capa pan-europea (layout distinto a `.haftlt`): localiza una tabla de ~464.688 entradas con stride constante de 3 MB, idéntica entre builds — el mejor candidato a tabla de tile-bases (el elemento que la teoría NDS siempre pidió) encontrado en toda la investigación. Aún sin decodificar a coordenadas reales.
 
 ### Investigaciones en profundidad
 
