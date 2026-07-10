@@ -127,6 +127,22 @@ Con el conjunto de ~6M de candidatos a `LINK_ID` extraídos de `.hafr` (en vez d
 
 **Implicación práctica para "añadir un radar":** el camino ya no es "encontrar una coordenada GPS que insertar" — es **"encontrar el `LINK_ID` real del segmento de carretera deseado (vía el mapa base/`.hafr`) y escribirlo en el campo correspondiente de un registro nuevo en `linked_records`"**, junto con el nombre de calle correcto en la tabla de Pascal-strings adyacente. Sigue sin resolverse con precisión total cuál de los 4 campos es el "principal" (los 4 muestran señal, posiblemente por redundancia o por codificar relaciones distintas: enlace propio, enlace anterior/siguiente, etc.) y cuál es exactamente el formato para insertar una entrada nueva de forma segura (recalcular `record_count`, mantener consistencia con las referencias de vecino `f2`/`f3`, etc.) — pero el bloqueo conceptual de "no sabemos qué representa la posición" queda resuelto.
 
+## ✅ Prueba definitiva: ejemplos concretos verificados contra `SPEED_PATCH.db`
+
+Para eliminar cualquier duda estadística, se buscaron registros de `linked_records` (España) cuyo `f6/f7` sea un `LINK_ID` que además **exista literalmente como fila en `SPEED_PATCH.db`** — no solo que caiga en rango, sino que tenga una entrada real con límite de velocidad. **354 de 23.528 registros cumplen esto.** Ejemplos:
+
+| `LINK_ID` (de `f6`/`f7`) | `DIR` | `SP_LIMIT` real | Nota |
+|---|---|---|---|
+| 15.429.877 | 0 / 1 | 80 / 50 km/h | Mismo segmento, límite distinto por sentido — típico de una curva o pendiente real |
+| 13.651.268 | 0 / 1 | 45 / 50 km/h | Ídem |
+| 15.100.391 | 0 / 1 | 30 / 50 km/h | Ídem |
+| 15.013.231 | 0 / 1 | 80 / 50 km/h | Ídem |
+| 14.909.134 | 2 (ambos) | 90 km/h, VEHICLE_TYPE=31 | Autobuses+ — límite específico por tipo de vehículo |
+| 14.984.798 | 2 (ambos) | 80 km/h | — |
+| 14.996.509 | 2 (ambos) | 70 km/h | — |
+
+Todos son límites de velocidad **reales y coherentes con carreteras españolas** (no valores aleatorios ni fuera de rango) — esto ya no es una correlación estadística indirecta, es una **confirmación directa, registro a registro, contra una base de datos completamente independiente**. Además: el campo `f2`/`f3` de estos mismos registros suele apuntar al **índice de array ±1** del propio registro (p. ej. registro 104 → `f2=103, f3=105`; registro 311 → `f2=310, f3=312`) — confirma que sí es una referencia de adyacencia dentro del array de `linked_records` (topología del grafo local), un fenómeno **distinto y complementario** a que `f6/f7` sea el `LINK_ID` propio del segmento (probado por separado: usar `f2/f3` como índice de array no correlaciona con qué registros tienen `LINK_ID` confirmado, ratio 1,00x — son dos propiedades independientes del mismo registro, no la misma cosa).
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
