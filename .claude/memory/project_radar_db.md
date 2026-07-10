@@ -111,7 +111,7 @@ Ver documento completo: [[haftlt-format]]
 | Cambiar límites velocidad por segmento | `SPEED_PATCH.db` | **Trivial** | Ninguno — SQLite listo |
 | Cambiar límites que disparan alertas | `SPEED_PATCH.db` | **Trivial** | Solo si la app usa SP_LIMIT para alertas |
 | Modificar/eliminar cámaras existentes | `haftlt` | **Difícil** | Key codes HERE desconocidos |
-| Añadir nuevas cámaras | `haftlt` + `hafls` | **Muy difícil** | Formato 12-byte + Link IDs no resueltos |
+| Añadir nuevas cámaras | `haftlt` + `hafls` | ~~Muy difícil~~ **Difícil (bloqueo conceptual resuelto)** | ⚠️ **Actualizado 2026-07-10:** ya no falta saber "qué es la posición" — `linked_records` referencia `LINK_ID` real (confirmado con permutación, p=0.0, ver [`docs/hafr_spatial_index.md`](../../docs/hafr_spatial_index.md)). Falta resolver la implementación: cuál de los 4 campos usar, y cómo insertar un registro nuevo manteniendo consistencia (record_count, referencias de vecino, checksum de cabecera) |
 | Bypass integridad (ZIP→MD5→CRC32) | Varios | **Claro** | Ver [[speed-patch-workflow]] |
 
 ### Próximos pasos pendientes (en orden de viabilidad)
