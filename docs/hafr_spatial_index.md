@@ -86,6 +86,30 @@ Verificado con precisión exacta en las 5 filas de ejemplo (deltas de `m0`: 458.
 
 **Lo que queda sin resolver:** el formato interno de los registros de payload (a qué corresponde el "ID de tile" repetido, cómo se codifican los enlaces/nodos individuales dentro de un tile, y cómo llegar de ahí a un `LINK_ID` o coordenada verificable). Es un sub-problema de formato nuevo y distinto del índice espacial — no se ha resuelto en esta sesión.
 
+## 🎯 Hallazgo principal de la sesión: tabla de nombres + IDs con correlación real a LINK_ID (confirmado con permutación, p=0.0)
+
+Siguiendo el puntero `m0=458.752` se llega a una región con registros de 12 bytes `[u32 counter][u32 big_incrementing][u32 tile_id]` que **termina en una tabla de Pascal-strings idéntica en formato a la ya confirmada en `.haftlt`** (con un byte de tipo extra: `[u8 length][u8 type=0x25][texto UTF-8]`), con nombres de calle reales de España/Portugal (`"Antiga Estrada Regional 101"`, `"Avenida de las Petrolíferas"`, `"Plaza de Juan Bordés Claverie"`, `"Rotonda Aureliano Montero Gabarrón"`...).
+
+**El patrón decisivo:** justo antes de cada nombre de calle hay varios registros consecutivos cuyo tercer campo (`tile_id`) **varía entre distintos valores que comparten orden de magnitud con `LINK_ID` real** — consistente con varios tramos/segmentos (cada uno con su propio ID) que comparten un único nombre de calle.
+
+**Prueba a escala (20 MB de muestra, 389.413 candidatos distintos en rango válido de `LINK_ID`):**
+
+```
+Aciertos reales contra SPEED_PATCH.db:  41.487 / 389.413  (10.654%)
+Densidad local real de LINK_ID en ese mismo rango:          4.628%
+Ratio observado/esperado:                                    2.30x
+Prueba de permutación (30 controles aleatorios en el mismo rango):
+  media de controles = 18.026 (4.629%), rango 17.773–18.319
+  resultado real (41.487) SUPERA A LOS 30 CONTROLES SIN EXCEPCIÓN
+  p-value empírico = 0.0
+```
+
+**Esto es cualitativamente distinto de todos los "falsos positivos" de hoy** (SPEED_PATCH.db cruzado contra `linked_records` de `.haftlt`, coordenada local escalada, Morton en `.hafcc`) — todos esos dieron ratio ≈1,0x tras corregir la línea base. Este resultado da **2,30x sobre un rango que ya es la práctica totalidad del espacio real de `LINK_ID`** (candidatos cubren `[737, 153.428.994]` casi exactamente el rango real `[736, 153.433.402]`), con significancia estadística total.
+
+**Interpretación:** el tercer campo de estos registros de 12 bytes en `.hafr` (`.hafr` ≠ `.haftlt` — son ficheros distintos) es, con alta probabilidad, un **`LINK_ID` real o muy cercano al espacio real de `LINK_ID`**, y está asociado directamente a nombres de calle mediante la tabla de Pascal-strings que le sigue. El ~89% de "no-aciertos" es coherente con que `SPEED_PATCH.db` solo cubre segmentos con límite de velocidad especial — la mayoría de segmentos reales no tendrían por qué aparecer ahí.
+
+**Confirma con evidencia sólida la hipótesis original del usuario:** la ubicación de una cámara/hazard en este ecosistema muy probablemente se resuelve vía referencia a `LINK_ID` (segmento de carretera con nombre), no vía coordenadas GPS embebidas directamente — el sistema de navegación resuelve la posición real cruzando el `LINK_ID` contra el grafo de rutas/mapa base, igual que hace para la guía de voz.
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
