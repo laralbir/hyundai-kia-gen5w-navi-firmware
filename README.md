@@ -34,7 +34,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 │   ├── diff_version_260128.md          Comparación ciphertext-level entre builds 251204 y 260128
 │   ├── haftlt_build_diff_260128.md     Diff binario dirigido de .haftlt entre dos builds reales — localización de zonas de radares
 │   ├── hafls_tile_table.md             Tabla de tiles candidata en .hafls (offset 0x108, stride 3MB) — mejor pista de tile-base NDS hasta ahora
-│   └── hafr_spatial_index.md           🎯 Índice espacial real en .hafr + correlación a LINK_ID confirmada con permutación (p=0.0) — hallazgo principal
+│   ├── hafr_spatial_index.md           🎯 Índice espacial real en .hafr + correlación a LINK_ID confirmada con permutación (p=0.0) — hallazgo principal
+│   └── hafp_geometry_search.md         Búsqueda de geometría real por LINK_ID en .hafp — partición de España localizada, geometría sin resolver
 └── tools/                              Herramientas y guías operativas para RE del HU
     ├── README.md                       Guía maestra paso a paso (leer primero)
     ├── setup.sh                        Clona todos los repos gen5w y verifica dependencias
@@ -53,9 +54,13 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
     ├── haftlt_viewer/                  Visualizador interactivo del fichero de radares (.haftlt)
     │   ├── README.md                   Uso y aviso: la salida NO se commitea (embebe datos HERE)
     │   └── generate_viewer.py         Genera el HTML: minimapa, hex dump e inspector u8/u16/u32
-    └── haftlt_parser/                  Desempaquetado estructurado del .haftlt (CSV/JSON)
-        ├── README.md                   Uso y aviso sobre *_diverging.bin (no son "bytes nuevos")
-        └── parse_haftlt.py            Vuelca índice + Secciones 1-4 a CSV; --other localiza zonas candidatas
+    ├── haftlt_parser/                  Desempaquetado estructurado del .haftlt (CSV/JSON)
+    │   ├── README.md                   Uso y aviso sobre *_diverging.bin (no son "bytes nuevos")
+    │   └── parse_haftlt.py            Vuelca índice + Secciones 1-4 a CSV; --other localiza zonas candidatas
+    └── camera_editor/                  🎯 App nativa macOS (SwiftUI) — editor de LINK_ID + límites de velocidad
+        ├── README.md                   Uso, qué NO hace (no escribe el .haftlt), y aviso sobre búsqueda por calle
+        ├── Package.swift               Manifiesto Swift Package Manager (macOS 14+)
+        └── Sources/CameraEditor/       Parser .haftlt + SQLite (SPEED_PATCH.db) + interfaz SwiftUI
 ```
 
 > Los ficheros binarios de gran tamaño (imágenes de firmware, mapas, paquetes VR) están excluidos mediante `.gitignore`.
@@ -102,6 +107,7 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 - [Diff binario de .haftlt entre builds reales](docs/haftlt_build_diff_260128.md) — comparación dirigida de la base de radares por país entre las versiones de mapas `18.49.56` y `18.52.70` (~4 meses de diferencia real): descarta índice y Sección 1 como almacén de cámaras, localiza las dos únicas zonas del fichero que crecen entre builds, corrige dos campos de cabecera mal etiquetados como constantes, y confirma una tabla de nombres de calle en texto UTF-8 real (primer texto legible de toda la investigación) en los 4 países probados. La conexión entre esos nombres y los registros de posición se probó exhaustivamente (offsets, índices, cruce con `LINK_ID` de `SPEED_PATCH.db`, coordenada local escalada) y quedó refutada en todos los casos con pruebas de significancia rigurosas.
 - [Tabla de tiles en .hafls](docs/hafls_tile_table.md) — análisis de cabecera fresco de la capa pan-europea (layout distinto a `.haftlt`): localiza una tabla de ~464.688 entradas con stride constante de 3 MB, idéntica entre builds — el mejor candidato a tabla de tile-bases (el elemento que la teoría NDS siempre pidió) encontrado en toda la investigación. Aún sin decodificar a coordenadas reales.
 - [🎯 Índice espacial y LINK_ID real en .hafr](docs/hafr_spatial_index.md) — hallazgo principal de la investigación: localiza un índice espacial verificable (bounding boxes reales de Europa) y una tabla de nombres de calle en el grafo de rutas completo, con un campo candidato a `LINK_ID` que correlaciona con `SPEED_PATCH.db` a 2,3x la densidad esperada, confirmado con prueba de permutación (p=0,0) — el primer resultado de toda la investigación (4+ sesiones) que sobrevive una prueba de significancia rigurosa.
+- [Búsqueda de geometría en .hafp](docs/hafp_geometry_search.md) — intento de encontrar coordenadas reales por `LINK_ID` en las particiones de mapa principales (~15 GB en 16 ficheros): localiza la partición de España (`hafp03`) y confirma el mismo formato de nombre de calle, pero cuatro enfoques distintos (patrón de cajas, `LINK_ID` directo, índice acumulativo, cruce con 759 coordenadas DGT reales) no dan con la geometría — documentado como pendiente, no resuelto.
 
 ### Investigaciones en profundidad
 

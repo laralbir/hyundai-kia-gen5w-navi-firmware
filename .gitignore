@@ -15,3 +15,8 @@
 # Reignorar basura de ejecución dentro de tools/ (bytecode Python, cachés)
 tools/**/__pycache__/
 tools/**/*.pyc
+
+# Reignorar artefactos de build de Swift Package Manager / Xcode dentro de tools/
+tools/**/.build/
+tools/**/.swiftpm/
+tools/**/*.xcodeproj/
