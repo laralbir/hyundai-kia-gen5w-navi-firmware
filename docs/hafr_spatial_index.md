@@ -48,6 +48,16 @@ Es la **primera estructura de todo el paquete HERE, en 4+ sesiones de investigac
 
 Pregunta que originó esta investigación: si `.haftlt` referencia posiciones vía `LINK_ID` en vez de coordenadas directas, y `SPEED_PATCH.db` solo cubre un subconjunto (segmentos con límite especial), quizás `.hafr` (el grafo de rutas **completo**) sí contenga el `LINK_ID` completo con el que cruzar `linked_records`. Este hallazgo del índice espacial es un subproducto de esa búsqueda — el siguiente paso lógico es recorrer el árbol hasta los nodos hoja para ver si ahí aparecen `LINK_ID` y/o geometría de segmento, y entonces sí cruzar contra `linked_records`.
 
+## Extensión del array de tiles (sesión 2026-07-10, continuación)
+
+Escaneando secuencialmente desde `0x308`: **6.776 registros válidos consecutivos** (todas las 4 boundaries en rango plausible de grados), terminando en offset `0x3bbe8` (244.712 bytes) — apenas el **0,03% del fichero** (965.793.208 bytes totales). El campo `m2` alcanza un máximo de **241.431.697** dentro de esos 6.776 registros, con incrementos variables (no +1 constante) — consistente con ser un **acumulado** (tamaño de subárbol o puntero de progreso) más que un ID secuencial simple, aunque no confirmado.
+
+**Probado y descartado:** `m2` como offset de byte directo dentro del fichero — los bytes en esas posiciones no decodifican a nada coherente (probado con varios valores de `m2`).
+
+**Transición en `0x3bbe8`:** justo donde termina el array de cajas aparece una región distinta: unos pocos pares del patrón conocido "tombstone" (`0xFFFFFFFF`/`0x00000000`, ver catálogo en `haf_format.md`), seguidos de una tabla con offsets de paso variable (incrementos de 4, 8, 12 o 13 entre entradas) — recuerda a la tabla índice de 6 bytes de `.haftlt` pero no es idéntica. Sin decodificar todavía.
+
+**Conclusión de esta fase:** el array de cajas confirmado es solo la parte alta del índice espacial (~245 KB) — el resto del fichero (>99,9%) debe contener el grafo de enlaces/geometría real, con una estructura aún no localizada. Encontrarla es el verdadero objetivo para llegar a `LINK_ID` reales.
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
