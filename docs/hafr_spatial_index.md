@@ -143,6 +143,21 @@ Para eliminar cualquier duda estadística, se buscaron registros de `linked_reco
 
 Todos son límites de velocidad **reales y coherentes con carreteras españolas** (no valores aleatorios ni fuera de rango) — esto ya no es una correlación estadística indirecta, es una **confirmación directa, registro a registro, contra una base de datos completamente independiente**. Además: el campo `f2`/`f3` de estos mismos registros suele apuntar al **índice de array ±1** del propio registro (p. ej. registro 104 → `f2=103, f3=105`; registro 311 → `f2=310, f3=312`) — confirma que sí es una referencia de adyacencia dentro del array de `linked_records` (topología del grafo local), un fenómeno **distinto y complementario** a que `f6/f7` sea el `LINK_ID` propio del segmento (probado por separado: usar `f2/f3` como índice de array no correlaciona con qué registros tienen `LINK_ID` confirmado, ratio 1,00x — son dos propiedades independientes del mismo registro, no la misma cosa).
 
+## De "entender" a "poder escribir": qué falta todavía
+
+El hallazgo de hoy resuelve el bloqueo **conceptual** (qué representa la posición), pero escribir un registro nuevo con seguridad requiere más piezas, algunas todavía abiertas:
+
+| Pieza | Estado |
+|---|---|
+| Campo `LINK_ID` propio del registro | ✅ Confirmado: `f6`/`f7` (`u32` = `f6 \| f7<<16`) |
+| Adyacencia local en el array | ✅ Confirmado: `f2`/`f3` apuntan al índice ±1 del propio registro (habría que actualizar los vecinos al insertar) |
+| Campos de tipo/categoría (`f1`, `f5`, `f7`) | ⚠️ Distribución distinta entre registros con `LINK_ID` confirmado y el resto (p. ej. `f5` en confirmados se concentra en 0-14, en el resto hay muchos valores cercanos a 65535/negativo) — sugerente de una codificación de tipo de amenaza, pero no aislado con precisión hoy |
+| Conexión con el nombre de calle en la tabla de Pascal-strings | ❌ Sigue sin resolverse el campo exacto (probado exhaustivamente en sesiones anteriores de hoy, refutado con permutación) |
+| Fórmula del checksum de cabecera (`0x80`) | ❌ Desconocida — cualquier inserción tendría que recalcularlo o el fichero podría rechazarse al cargar |
+| Actualizar `record_count` y mantener offsets consistentes | Mecánico, pero no probado en la práctica |
+
+**Balance honesto:** hoy se resolvió la pregunta más importante y más buscada de toda la investigación ("¿qué es la posición?"), con la prueba más sólida de toda la sesión. Pero "añadir un radar nuevo de forma seguramente aceptada por el sistema" sigue teniendo piezas sin resolver — es un avance real y grande, no la solución completa.
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
