@@ -161,4 +161,13 @@ CREATE TABLE SPEED_PATCH (LINK_ID INT64, DIR INT, SP_LIMIT INT,
 - El recuento de filas bajó de 10,35M a 8,31M (−2,04M) — coherente con haber colapsado múltiples filas por-tipo-de-vehículo en una sola fila genérica por segmento, no con haber perdido cobertura geográfica.
 - `tools/camera_editor` (app SwiftUI) detecta el esquema en tiempo de apertura vía `PRAGMA table_info` y se adapta automáticamente a ambas variantes.
 
+## Columna "Calle (candidata)" en el listado (añadida 2026-07-10)
+
+A petición del usuario, `tools/camera_editor` ahora muestra el nombre de calle candidato junto a cada fila de `SPEED_PATCH.db` (no solo en la búsqueda por dirección). Usa la misma heurística de proximidad de posición ya marcada como refutada como enlace verdadero (ver [[haftlt-format]], test de permutación percentil 90). Medido sobre España (`VIT_EUR_SPN.haftlt`, ventana=5 registros):
+
+- Build 251204: 1774/2000 LINK_ID de muestra (88.7%) tienen algún nombre candidato dentro de la ventana.
+- Build 260128: 1786/2000 (89.3%) — consistente entre builds.
+
+**Interpretación correcta**: la heurística casi siempre *encuentra un nombre*, pero eso no implica que sea el nombre correcto de esa calle — la cobertura alta es un artefacto de que los nombres están densamente distribuidos en la tabla (20.290 nombres / 23.528 registros), no evidencia de que el enlace sea real. La app y el README dejan esto explícito con un aviso naranja.
+
 Related: [[haftlt-format]] · [[project-radar-db]] · [[haf-format]]

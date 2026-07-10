@@ -23,3 +23,11 @@ tools/**/*.xcodeproj/
 
 # Reignorar basura de Finder
 tools/**/.DS_Store
+
+# Repos upstream de gen5w clonados por tools/setup.sh — código de terceros con su propio
+# historial git y binarios; solo para inspección local, no forman parte de este repo.
+tools/navi_extended/
+tools/update_decryptor/
+tools/update-patcher/
+tools/gen5w-docker/
+tools/update_fetcher/

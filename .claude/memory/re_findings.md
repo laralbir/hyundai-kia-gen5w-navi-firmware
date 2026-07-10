@@ -30,11 +30,13 @@ metadata:
 ## Firmware MCU (frontkey)
 
 - `MKBD_2_1f_00_NX4.bin` y `MKBD_2_22_00_US4.bin` — 192 KB cada uno.
-- Magic `d8 00 ff ff ff ff`: patrón típico de flash **ARM Cortex-M** (little-endian).
-  - Bytes 0–3: Initial Stack Pointer
-  - Zonas `ff ff ff ff`: sectores de flash no programados
+- ⚠️ **Corrección (2026-07-10):** NO es ARM Cortex-M. Desensamblado real con Ghidra + módulo RL78 de terceros (`xyzz/ghidra-rl78`) confirma **Renesas RL78**: tabla de vectores de 16 bits en `0x0000-0x007E` (reset vector `0x00D8`), option bytes `0xC2-C3`, Security ID `0xC4-CE`. El binario NO está cifrado — desensamblado limpio y coherente.
 - **MKBD** = Main Key Board Driver (firmware del panel de botones).
-- Herramientas: Ghidra o IDA con arquitectura ARM Cortex-M.
+- **Lógica identificada:** 16 funciones de validación (tabla de punteros en `0xBBD0`) comparan un buffer de 8 bytes (`!0xFF680`, lectura cruda de la matriz de botones) contra tablas de calibración por botón en RAM, marcando discrepancias en un bitmap de ~40 bits (`!0xFF6B9-0xFF6BD`). Wrappers de sección crítica DI/EI con contador de anidamiento en `0x8A7F`/`0x8AA3`.
+- **NX4 vs US4:** NO son el mismo código con datos distintos — 39.8% de bytes difieren en todo el fichero, ~92% dentro de la región de código analizada. Son compilaciones genuinamente distintas.
+- Pendiente: localizar el protocolo de comunicación serie con el SoC principal (UART/LIN/SPI) y el origen en flash de las tablas de calibración.
+- Análisis completo: [`docs/frontkey_mkbd_analysis.md`](../../docs/frontkey_mkbd_analysis.md).
+- Herramientas: Ghidra 12.x + módulo RL78 (`brew install ghidra`, no incluye RL78 de fábrica).
 - CRC32 verificables con `frontkey/Checksum.txt`:
   - NX4: `0x0E969002`
   - US4: `0xBCFCC65D`

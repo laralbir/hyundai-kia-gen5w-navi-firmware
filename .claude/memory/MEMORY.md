@@ -3,7 +3,8 @@
 - [File Details](file_details.md) — Tamaños, magic bytes y estado de accesibilidad de todos los archivos del paquete (~22.5 GB total)
 - [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets
 - [VR Engine](vr_engine.md) — Motor LPTE TTS v1.5.1 (Cerence), 24 idiomas EU / 1 AU (coreano), estructura interna de mango-vr_fixed.tar.gz
-- [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU ARM Cortex-M, estrategia de RE recomendada
+- [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU frontkey identificado como Renesas RL78 (no ARM Cortex-M), estrategia de RE recomendada
+- [Frontkey MKBD Analysis](frontkey_mkbd_analysis.md) — Ghidra + módulo RL78 de terceros; lógica de validación de matriz de botones decompilada; NX4 vs US4 son binarios genuinamente distintos, no misma lógica con datos distintos
 - [Radar DB Analysis](project_radar_db.md) — 🎯 .hafr (grafo de rutas) da correlación real a LINK_ID confirmada con permutación (p=0.0, ratio 2.3x) — primer resultado significativo de toda la investigación; ver hafr_spatial_index.md
 - [HAFTLT Format](haftlt_format.md) — Cabecera/secciones 1-4 confirmadas; NO es contenedor ZIP/TAR; tabla de nombres de calle (Pascal-strings) y tabla de 16B confirmadas en 4 países vía tools/haftlt_parser; tabla de tiles candidata en .hafls (docs/hafls_tile_table.md)
 - [Speed Patch Workflow](speed_patch_workflow.md) — Workflow operativo: modificar SPEED_PATCH.db + reempaquetar ZIP + actualizar MD5 y CRC32 en .ver

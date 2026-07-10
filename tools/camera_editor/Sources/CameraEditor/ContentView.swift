@@ -140,9 +140,20 @@ struct ContentView: View {
                 }
                 .disabled(model.store == nil)
             }
-            .padding()
+            .padding([.horizontal, .top])
+
+            if !model.streetNames.isEmpty {
+                Text("⚠️ Columna \"Calle\" = candidato por proximidad de posición en el .haftlt, no un enlace LINK_ID↔nombre confirmado (ver docs/haftlt_build_diff_260128.md).")
+                    .font(.caption2).foregroundStyle(.orange)
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
+            }
 
             Table(model.rows) {
+                TableColumn("Calle (candidata)") { row in
+                    Text(streetNameCandidate(for: row) ?? "—")
+                        .foregroundStyle(streetNameCandidate(for: row) == nil ? .secondary : .primary)
+                }
                 TableColumn("LINK_ID") { row in Text("\(row.linkId)").monospaced() }
                 TableColumn("DIR") { row in Text(dirLabel(row.dir)) }
                 TableColumn("SP_LIMIT") { row in Text("\(row.spLimit) km/h") }
@@ -166,6 +177,11 @@ struct ContentView: View {
                 .padding(8)
             }
         }
+    }
+
+    private func streetNameCandidate(for row: SpeedPatchRow) -> String? {
+        guard let lid = UInt32(exactly: row.linkId) else { return nil }
+        return model.candidateStreetName(for: lid)
     }
 
     private func dirLabel(_ d: Int) -> String {

@@ -26,6 +26,7 @@ final class AppModel: ObservableObject {
     @Published var streetNames: [StreetName] = []
     @Published var linkedRecords: [LinkedRecord] = []
     @Published var linkIdToRecordCount: [UInt32: Int] = [:]
+    @Published var linkIdToRecordIndices: [UInt32: [Int]] = [:]
 
     // Busqueda / listado
     @Published var searchMode: SearchMode = .browseAll
@@ -101,8 +102,13 @@ final class AppModel: ObservableObject {
             self.streetNames = parsed.names
             self.linkedRecords = parsed.records
             var counts: [UInt32: Int] = [:]
-            for r in parsed.records { counts[r.linkId, default: 0] += 1 }
+            var indices: [UInt32: [Int]] = [:]
+            for r in parsed.records {
+                counts[r.linkId, default: 0] += 1
+                indices[r.linkId, default: []].append(r.idx)
+            }
             self.linkIdToRecordCount = counts
+            self.linkIdToRecordIndices = indices
             setStatus("Cargado: \(parsed.names.count) nombres de calle, \(parsed.records.count) registros linked_records", error: false)
         } catch {
             setStatus("Error cargando .haftlt: \(error.localizedDescription)", error: true)
@@ -174,6 +180,28 @@ final class AppModel: ObservableObject {
         let hi = min(linkedRecords.count - 1, idx + window)
         guard lo <= hi else { return [] }
         return Array(Set(linkedRecords[lo...hi].map { $0.linkId }))
+    }
+
+    /// Nombre de calle candidato para un LINK_ID: busca su(s) registro(s) en
+    /// linked_records (enlace real, vía f6/f7) y devuelve el nombre de calle
+    /// cuya posición en la tabla de nombres esté más cerca de la posición de
+    /// ese registro. La parte "posición ~ registro" es la MISMA heurística de
+    /// proximidad que candidateLinkIds, sin confirmar formalmente (ver
+    /// docs/haftlt_build_diff_260128.md) -- se ofrece como candidato, no como
+    /// enlace verificado. Devuelve nil si no hay .haftlt cargado o no hay
+    /// ningún nombre dentro de la ventana.
+    func candidateStreetName(for linkId: UInt32, window: Int = 5) -> String? {
+        guard let recordIdx = linkIdToRecordIndices[linkId]?.first, !streetNames.isEmpty else { return nil }
+        let lo = max(0, recordIdx - window)
+        let hi = min(streetNames.count - 1, recordIdx + window)
+        guard lo <= hi else { return nil }
+        var best: StreetName?
+        var bestDist = Int.max
+        for name in streetNames[lo...hi] {
+            let d = abs(name.idx - recordIdx)
+            if d < bestDist { bestDist = d; best = name }
+        }
+        return best?.text
     }
 
     func refresh() {

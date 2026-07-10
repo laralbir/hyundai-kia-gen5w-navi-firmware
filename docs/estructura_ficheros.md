@@ -118,11 +118,9 @@ MKBD_2_22_00_US4.BIN   CRC32=0xBCFCC65D
 ### `frontkey/nx4/MKBD_2_1f_00_NX4.bin` · 192 KB · Firmware MCU
 
 Firmware del microcontrolador del panel frontal de botones, variante **NX4**.  
-Primeros bytes: `d8 00 ff ff ff ff ...` — patrón típico de flash ARM Cortex-M en little-endian:
-- Bytes 0–3: Initial Stack Pointer (posible valor: `0xFFFF00D8` en LE)
-- Zonas `ff ff ff ff`: sectores de flash no programados
+⚠️ Corrección (2026-07-10): los primeros bytes `d8 00 ff ff ff ff ...` se interpretaron inicialmente como tabla de vectores ARM Cortex-M, pero el desensamblado real **confirma Renesas RL78**: tabla de vectores de 16 bits (reset vector `0x00D8`), option bytes en `0xC2-C3` y Security ID en `0xC4-CE`. Ver análisis completo y decompilación en [`docs/frontkey_mkbd_analysis.md`](frontkey_mkbd_analysis.md).
 
-**RE:** Usar un desensamblador de ARM (Ghidra, IDA) con arquitectura Cortex-M. El `MKBD` del nombre sugiere "Main Key Board Driver".
+**RE:** Usar Ghidra con el módulo de procesador RL78 de terceros (`xyzz/ghidra-rl78`, no incluido de fábrica). El `MKBD` del nombre sugiere "Main Key Board Driver". Lógica identificada: validación de una matriz de botones (buffer de 8 bytes) contra tablas de calibración por botón.
 
 ---
 
@@ -130,8 +128,8 @@ Primeros bytes: `d8 00 ff ff ff ff ...` — patrón típico de flash ARM Cortex-
 
 ### `frontkey/us4hev/MKBD_2_22_00_US4.bin` · 192 KB · Firmware MCU
 
-Idéntico en estructura al NX4 pero para la variante **US4 HEV** (posiblemente un modelo con sistema Hybrid Electric Vehicle o una revisión de hardware diferente del panel).  
-CRC32: `0xBCFCC65D`
+Firmware RL78 para la variante **US4 HEV**. CRC32: `0xBCFCC65D`.  
+No es una simple variación de datos sobre NX4: ~92% de los bytes difieren en la región de código analizada — son compilaciones genuinamente distintas, no el mismo binario con una tabla de calibración distinta. Ver [`docs/frontkey_mkbd_analysis.md`](frontkey_mkbd_analysis.md).
 
 ---
 

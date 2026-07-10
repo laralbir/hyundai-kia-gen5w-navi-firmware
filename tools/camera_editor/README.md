@@ -8,19 +8,27 @@ el 2026-07-09/10 (ver [`docs/hafr_spatial_index.md`](../../docs/hafr_spatial_ind
   (confirmado por permutación estadística y verificación directa contra `SPEED_PATCH.db`)
 - `SPEED_PATCH.db` (SQLite) — límites de velocidad reales por `LINK_ID`
 
-Permite **listar, buscar, añadir, editar y borrar** filas de `SPEED_PATCH.db`.
+Permite **listar, buscar, añadir, editar y borrar** filas de `SPEED_PATCH.db`,
+con una columna **"Calle (candidata)"** en el listado que muestra, junto a
+cada `LINK_ID`, el nombre de calle más cercano por posición en el `.haftlt`
+(mismo mecanismo que la búsqueda por dirección — ver aviso abajo).
 
 ## ⚠️ Qué NO hace
 
 - **No escribe sobre el `.haftlt` original.** El formato de escritura de ese
   binario (fórmula del checksum de cabecera, conexión exacta nombre↔registro)
   no está resuelto — ver `docs/haftlt_build_diff_260128.md`.
-- **La búsqueda "por dirección" no es un enlace confirmado.** Muestra
-  candidatos de `LINK_ID` por proximidad de posición en el array de
-  `linked_records` respecto al nombre de calle — esa conexión se probó
-  exhaustivamente y quedó **refutada** con pruebas de permutación. La app
-  lo señala con un aviso visible en la interfaz; no lo trates como resultado
-  fiable, solo como punto de partida para explorar.
+- **La búsqueda "por dirección" y la columna "Calle (candidata)" no son un
+  enlace confirmado.** Ambas usan la misma heurística: el nombre de calle
+  más cercano por posición en el array a la posición del registro
+  `linked_records` que tiene ese `LINK_ID` — esa conexión se probó
+  exhaustivamente y quedó **refutada como enlace verdadero** con pruebas de
+  permutación (percentil 90, peor que la mayoría de controles aleatorios).
+  Con ventana=5 la heurística encuentra *algún* nombre cercano para ~89% de
+  los `LINK_ID` (probado sobre España, builds 251204 y 260128), pero no hay
+  garantía de que sea el nombre correcto de esa calle — trátalo como
+  candidato/punto de partida, nunca como dato fiable. La app lo señala con
+  un aviso visible en la interfaz.
 - Solo cubre un país (`.haftlt` de un país) por sesión de la app.
 
 ## Requisitos

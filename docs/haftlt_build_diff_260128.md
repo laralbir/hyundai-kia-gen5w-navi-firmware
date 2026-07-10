@@ -168,6 +168,8 @@ Control estadístico: con 157/7.746 nombres nuevos (2,03%), 204 intentos al azar
 
 **Conclusión:** la tabla de nombres y la tabla de registros de 16 bytes están estructuralmente confirmadas por separado, pero **no están enlazadas por ningún campo individual de forma directa**. Si existe relación, es indirecta — quizá vía una tercera tabla no identificada, vía las Secciones 2-4 (que sí comparten el patrón de ID+vecino), o los registros de 16 bytes son datos de topología de rutas sin relación con los nombres (que podrían servir a un propósito distinto, como búsqueda de direcciones/POI en vez de a la base de cámaras). No dar por sentado ningún vínculo entre ambas tablas sin repetir este mismo tipo de verificación cruzada.
 
+**Nota (2026-07-10, `tools/camera_editor`):** medida la *cobertura* (no la exactitud) de la heurística de proximidad de posición sobre España: con ventana=5 registros alrededor del índice del `linked_record` de un `LINK_ID`, un **~89%** de una muestra de 2.000 `LINK_ID` tiene *algún* nombre de calle dentro de esa ventana (1774/2000 en build 251204, 1786/2000 en 260128). Esta cifra alta es consistente con la refutación de arriba, no la contradice: con 20.290 nombres repartidos entre 23.528 registros, casi cualquier posición tiene un nombre cerca — encontrar *un* candidato es fácil, que sea *el correcto* es lo que sigue sin confirmarse (y lo que el test de permutación puso en percentil 90, peor que el azar). La app muestra este candidato en su listado con un aviso explícito de que no es un enlace verificado.
+
 ## Estado de la investigación tras este análisis
 
 **No se ha logrado extraer una coordenada GPS ni un formato de registro de cámara completo, insertable de forma segura.** Pero se ha avanzado material y metodológicamente:

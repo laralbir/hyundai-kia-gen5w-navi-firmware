@@ -31,6 +31,7 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 │   ├── analisis_mapas_here.md          Análisis técnico detallado del paquete de mapas HERE
 │   ├── gen5w_exploit_ecosystem.md      Cadena de exploit para descifrar OTA + persistencia en el HU
 │   ├── engineering_mode.md             Análisis de acceso a Engineering Mode (bloqueos SOP, PIN QML, rutas alternativas)
+│   ├── frontkey_mkbd_analysis.md       Firmware MKBD (panel de botones) desensamblado con Ghidra: RL78 confirmado (no ARM), lógica de validación de matriz de botones, NX4 vs US4
 │   ├── diff_version_260128.md          Comparación ciphertext-level entre builds 251204 y 260128
 │   ├── haftlt_build_diff_260128.md     Diff binario dirigido de .haftlt entre dos builds reales — localización de zonas de radares
 │   ├── hafls_tile_table.md             Tabla de tiles candidata en .hafls (offset 0x108, stride 3MB) — mejor pista de tile-base NDS hasta ahora
@@ -80,7 +81,7 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 | Firmware módem EU LE22 | 331,1 MB | Cifrado AES |
 | Firmware principal — `update.tar.gz` | 40,2 MB | Cifrado AES |
 | Imágenes de arranque — `iasImage` (×12) | ~73,8 MB | Cifrado / formato IAS |
-| MCU panel de botones (×2) | ~384 KB | ARM Cortex-M — accesible |
+| MCU panel de botones (×2) | ~384 KB | Renesas RL78, sin cifrar — accesible |
 | **Total** | **~22,5 GB** | |
 
 ---
@@ -88,7 +89,7 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 ## Hallazgos principales de ingeniería inversa
 
 - **Cifrado:** AES/Rijndael confirmado. La clave reside en el HU físico en el binario `DecryptToPIPE` + `decryption_key.der`. Existe una cadena de exploit pública (`gitlab.com/g4933/gen5w`) para extraerla del dispositivo y descifrar los OTA en PC.
-- **Únicos ficheros accesibles sin exploit:** `mango-vr_fixed.tar.gz` (ambas regiones, gzip real) y los `.bin` del MCU del panel de botones (ARM Cortex-M).
+- **Únicos ficheros accesibles sin exploit:** `mango-vr_fixed.tar.gz` (ambas regiones, gzip real) y los `.bin` del MCU del panel de botones (Renesas RL78, desensamblado limpio y decompilado con Ghidra — ver [`docs/frontkey_mkbd_analysis.md`](docs/frontkey_mkbd_analysis.md)).
 - **Formato HERE Maps:** HAF (HERE Automotive Format), propietario. `SPEED_PATCH.db` es una base de datos SQLite 3 estándar con 10,3 millones de registros de límites de velocidad por segmento de carretera.
 - **Motor de voz:** LPTE TTS v1.5.1 (probablemente Cerence/ex-Nuance). 24 idiomas europeos en el paquete EU; solo coreano en el paquete AU.
 - **Formato iasImage:** Probable IAS (Image Authentication Subsystem) — imágenes de arranque seguro firmadas/cifradas. No coincide con los magic bytes de U-Boot, FIT/DTB ni zImage.
@@ -103,11 +104,13 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 - [Análisis técnico de los mapas HERE](docs/analisis_mapas_here.md) — formato HAF, esquema de `SPEED_PATCH.db`, bases de datos de radares, datos ADAS de horizonte electrónico, diccionarios VR, assets de interfaz e inventario de software de terceros.
 - [Ecosistema de exploits gen5w](docs/gen5w_exploit_ecosystem.md) — cadena completa para descifrar OTA: exploit USB (`navi_extended`), extracción de `DecryptToPIPE` + `decryption_key.der`, Docker `update_decryptor`, patcher de persistencia y entorno `gen5w-docker`.
 - [Engineering Mode](docs/engineering_mode.md) — análisis de los dos bloqueos en firmware MASS_PRODUCT (`checkSOPVersion()` + PIN QML), PINs documentados, rutas alternativas de acceso (UART, GDS, firmware antiguo) y procedimiento recomendado.
+- [Análisis del firmware MKBD (frontkey)](docs/frontkey_mkbd_analysis.md) — desensamblado y decompilación con Ghidra + módulo RL78 de terceros: corrige la arquitectura (Renesas RL78, no ARM Cortex-M), documenta la lógica de validación de la matriz de botones (buffer de 8 bytes vs. tablas de calibración por botón) y demuestra que NX4/US4 son compilaciones distintas, no el mismo código con datos distintos. Incluye guía reutilizable de setup de Ghidra para RL78.
 - [Comparación de versiones 251204 vs 260128](docs/diff_version_260128.md) — análisis ciphertext-level de la nueva versión descargada: técnica de comparación entre builds sin clave, ficheros sin cambio real (frontkey, VR fixed, módems) vs. con cambio real de contenido (rootfs, update, GUI, mapas).
 - [Diff binario de .haftlt entre builds reales](docs/haftlt_build_diff_260128.md) — comparación dirigida de la base de radares por país entre las versiones de mapas `18.49.56` y `18.52.70` (~4 meses de diferencia real): descarta índice y Sección 1 como almacén de cámaras, localiza las dos únicas zonas del fichero que crecen entre builds, corrige dos campos de cabecera mal etiquetados como constantes, y confirma una tabla de nombres de calle en texto UTF-8 real (primer texto legible de toda la investigación) en los 4 países probados. La conexión entre esos nombres y los registros de posición se probó exhaustivamente (offsets, índices, cruce con `LINK_ID` de `SPEED_PATCH.db`, coordenada local escalada) y quedó refutada en todos los casos con pruebas de significancia rigurosas.
 - [Tabla de tiles en .hafls](docs/hafls_tile_table.md) — análisis de cabecera fresco de la capa pan-europea (layout distinto a `.haftlt`): localiza una tabla de ~464.688 entradas con stride constante de 3 MB, idéntica entre builds — el mejor candidato a tabla de tile-bases (el elemento que la teoría NDS siempre pidió) encontrado en toda la investigación. Aún sin decodificar a coordenadas reales.
 - [🎯 Índice espacial y LINK_ID real en .hafr](docs/hafr_spatial_index.md) — hallazgo principal de la investigación: localiza un índice espacial verificable (bounding boxes reales de Europa) y una tabla de nombres de calle en el grafo de rutas completo, con un campo candidato a `LINK_ID` que correlaciona con `SPEED_PATCH.db` a 2,3x la densidad esperada, confirmado con prueba de permutación (p=0,0) — el primer resultado de toda la investigación (4+ sesiones) que sobrevive una prueba de significancia rigurosa.
 - [Búsqueda de geometría en .hafp](docs/hafp_geometry_search.md) — intento de encontrar coordenadas reales por `LINK_ID` en las particiones de mapa principales (~15 GB en 16 ficheros): localiza la partición de España (`hafp03`) y confirma el mismo formato de nombre de calle, pero cuatro enfoques distintos (patrón de cajas, `LINK_ID` directo, índice acumulativo, cruce con 759 coordenadas DGT reales) no dan con la geometría — documentado como pendiente, no resuelto.
+- [Comunicación externa de datos del vehículo](docs/telematics_vehicle_data.md) — distingue el canal interno CAN→HU (rootfs) del canal externo TCU→nube (módem → Kia Connect, API REST "CCAPI" `eu-ccapi.kia.com`, documentada del lado servidor por proyectos públicos como `hyundai_kia_connect_api`/`bluelinky`). Ambos canales siguen cifrados sin RE del código cliente; propone un atajo de shell en vivo vía el exploit `navi_extended` en vez de esperar al descifrado completo de los paquetes de módem.
 
 ### Investigaciones en profundidad
 
@@ -118,7 +121,8 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
 ### Contexto de ingeniería inversa (memoria IA)
 
 - [Motor de voz VR](.claude/memory/vr_engine.md) — motor LPTE TTS v1.5.1 (Cerence), estructura interna de `mango-vr_fixed.tar.gz`, 24 idiomas EU / coreano AU, datos de voz para POI dentro del ZIP de mapas.
-- [Hallazgos RE](.claude/memory/re_findings.md) — cifrado AES confirmado, tabla de magic bytes por archivo, firmware MCU ARM Cortex-M, formato iasImage, estrategia de análisis recomendada, componentes open source confirmados.
+- [Hallazgos RE](.claude/memory/re_findings.md) — cifrado AES confirmado, tabla de magic bytes por archivo, firmware MCU frontkey identificado como Renesas RL78, formato iasImage, estrategia de análisis recomendada, componentes open source confirmados.
+- [Análisis frontkey MKBD](.claude/memory/frontkey_mkbd_analysis.md) — resumen del setup de Ghidra para RL78 y de la lógica de validación de matriz de botones decompilada.
 - [Formato HAF](.claude/memory/haf_format.md) — HERE Automotive Format: extensiones (`.hafp`/`.hafr`/`.hafaip`/…), esquema SQLite de `SPEED_PATCH.db`, archivos de radar, ADAS, configuración JSON y assets de UI.
 
 ---
