@@ -154,4 +154,23 @@ Tras analizar en profundidad `.haftlt` (`linked_records`) y `.hafls` (tabla disp
 
 **Se intentó escribir el parser correcto que camina bloque a bloque — falla en el segundo bloque.** El bloque 1 se confirmó exactamente (`sub_count=3`, tres triples válidos, `link_ref=3`, ver arriba). Pero al aplicar el mismo esquema de cabecera (`[block_off][field_b][field_c][zero][sub_count][pad]`) al bloque 2, el campo esperado como "zero" vale `16.998.285` — **no es cero**. Es decir, el `zero=0` del bloque 1 era casuística de esa entrada concreta, no una regla general de la cabecera. La estructura real de bloque tiene más variabilidad de la que asumía la nota de la sesión 2026-06-30 (que tampoco llegó a un parser funcional para todo el fichero). **No resuelto** — replicar el parser exigiría heurísticas más finas (probablemente cabecera de tamaño variable, o un campo adicional que determina la forma del bloque) que no se han desarrollado. Los valores en offset `0x288` en adelante (`5.310.506 / 16.998.285`, `5.318.374 / 17.002.144`...) siguen pareciendo pares con la misma magnitud/patrón de delta que el bloque 1, así que el contenido es coherente — el problema es solo de segmentación del formato, no de que los datos sean ruido.
 
+## Especificación real de NDS para coordenadas (encontrada por búsqueda web, sesión 2026-07-10)
+
+Documentos de patente de Elektrobit Automotive (asociados a NDS Association) describen la codificación real de coordenadas NDS, distinta de lo que se venía asumiendo en sesiones anteriores:
+
+- **Longitud**: entero de **32 bits con signo**, unidad = `90/2^30` grados por LSB (un entero de 32 bits cubre exactamente los 360° completos).
+- **Latitud**: entero de **31 bits con signo** (no 32) — mismo unidad `90/2^30`, cubre exactamente 180°.
+- Ambos enteros se combinan mediante **intercalado de bits (Morton code)** en un único valor de **63 bits**, no se almacenan como dos campos independientes de igual anchura.
+- El direccionamiento por tiles a nivel `k` usa los `2k+1` bits más significativos de ese Morton code — la geografía se parte en `2^(2k+1)` tiles por nivel.
+
+Fuente: patente "Technique for structuring a navigation database" (Elektrobit), vía búsqueda web — no es documentación oficial de HERE, pero describe el estándar NDS del que HERE es miembro fundador, y su formato interno (`.haftlt`/`.hafcc`/`.hafls`) muy probablemente deriva de esta misma base.
+
+**Verificación importante — la fórmula "ingenua" de sesiones anteriores YA ERA correcta para longitud:** `lon = v/2^32 × 360 - 180` (para `v` sin signo de 32 bits) es matemáticamente idéntica a interpretar `v` como entero de 32 bits **con signo** multiplicado por `90/2^30` (son la misma operación, solo expresada distinto). Es decir, el fallo de las 3 sesiones anteriores **no estaba en la fórmula de longitud**.
+
+**Lo que SÍ es nuevo y nunca se probó:** el **intercalado Morton real** — combinar lon (32 bits) + lat (31 bits) en un único valor de 63 bits antes de decodificar, en vez de tratar dos campos del fichero como longitud y latitud **independientes** (que es lo que han hecho todas las sesiones, incluida la de hoy, con cada par `(coord_a, coord_b)` encontrado). Esto es un hueco arquitectónico real en todo lo probado hasta ahora.
+
+**Prueba rápida contra `.hafcc` (sesión 2026-07-10):** se recombinaron los pares conocidos de `.hafcc` (`3.080.070/18.046.915`, `5.310.506/16.998.285`, etc.) en un valor de 63 bits y se desintercalaron como Morton — los resultados son demasiado pequeños en magnitud (del orden de millones) frente al espacio NDS completo (miles de millones, dado el unidad `90/2^30`). **No descarta el Morton en general**, pero descarta que estos valores concretos de `.hafcc` sean un Morton code NDS a resolución completa — son más probablemente deltas locales o un tipo de dato no geográfico, coherente con las conclusiones ya alcanzadas hoy sobre `.hafcc`.
+
+**Pendiente para una futura sesión:** aplicar el intercalado Morton correcto (63 bits, no independiente) a los campos de `linked_records` de `.haftlt` (especialmente `f4`/`f6`, ya descartados como coordenada lineal independiente pero nunca probados como mitades de un Morton combinado) y a la tabla dispersa de `.hafls`, con prueba de permutación desde el principio.
+
 Related: [[project-context]] · [[vr-engine]] · [[file-details]] · [[haftlt-format]] · [[project-radar-db]]
