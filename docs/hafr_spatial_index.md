@@ -1,0 +1,58 @@
+# `.hafr` — índice espacial real (R-tree/quadtree) localizado
+
+**Fecha:** 2026-07-10
+**Fichero:** `VIT_EUR.hafr` (grafo de rutas pan-europeo, 965.793.208 bytes, `FORMAT_VERSION_02.02.47`, datos `2025.07.16.11`). Sin cifrar — accesible directamente del ZIP de mapas.
+
+## Contexto
+
+Tres sesiones anteriores (y la de hoy, hasta este punto) solo habían usado `.hafr` para escaneo de coordenadas por fuerza bruta (buscando pares NDS de 32 bits en toda la extensión del fichero), con resultado negativo confirmado contra las 759 coordenadas reales de la DGT. Nunca se había intentado entender la **estructura interna** del fichero — hoy, motivado por la pregunta de si la posición de una cámara podría resolverse vía `LINK_ID` contra el grafo de rutas completo (no solo contra el subconjunto de `SPEED_PATCH.db`), se examinó la cabecera y el inicio de los datos con las herramientas desarrolladas hoy.
+
+## Hallazgo: cabecera comparte constantes de bounding-box con `.hafls`
+
+En offset `0xd4` y `0xec` de la cabecera de `.hafr` aparecen los valores `76.320.000` y `33.000.000` — los mismos que ya se habían visto en la cabecera de `.hafls` (offsets `0x50`/`0x54`) y etiquetado como "posible bounding box de Europa, escala sin confirmar". Verse en **dos ficheros distintos** refuerza que son una constante real del formato, no casualidad.
+
+## Hallazgo principal: estructura de nodo con bounding box real, offset `0x308`+
+
+A partir de offset `0x308` (justo después de la cabecera) hay una secuencia de registros de 36 bytes con esta forma:
+
+```
+[i32 b0][i32 b1][i32 b2][i32 b3]   <- 4 boundaries, unidad = valor/1.000.000 (grados)
+[u32 m0][u32 m1][u32 m2][u32 m3][u32 m4]   <- metadata (m2 parece un ID incremental)
+```
+
+**Verificación decisiva:** decodificando `b0`–`b3` como enteros de 32 bits **con signo** divididos por 1.000.000:
+
+| offset | b0 | b1 | b2 | b3 | m1 | m2 (id) | m4 |
+|---|---|---|---|---|---|---|---|
+| 0x308 | 33.0000 | 25.3200 | 1.4400 | 7.2000 | 1 | 4294967295 (∅) | 0 |
+| 0x32c | 12.8400 | 2.2800 | **-15.8400** | 7.2000 | 7 | 2429234 | 54584 |
+| 0x350 | 13.8000 | 12.8400 | -15.8400 | -2.1600 | 7 | 2464869 | 80296 |
+| 0x374 | 13.8000 | 12.8400 | -2.1600 | -0.7200 | 12 | 2516115 | 115196 |
+| 0x398 | 13.8000 | 12.8400 | -0.7200 | 5.0400 | 8 | 2589947 | 61186 |
+| 0x3bc | 13.8000 | 12.8400 | 5.0400 | 7.2000 | 7 | 2629767 | 82320 |
+| 0x3e0 | 9.9600 | 2.2800 | 7.2000 | **76.3200** | 4 | 4294967295 (∅) | 0 |
+| 0x404 | 33.0000 | 13.8000 | -15.8400 | -4.3200 | 2 | 2682315 | 35006 |
+
+- **`b0=33.0000` en la primera fila coincide exactamente con la constante de cabecera `33.000.000`**, y **`b3=76.3200` en la fila 7 coincide exactamente con `76.320.000`** — confirma que este árbol usa la misma escala/origen que la cabecera, y que `33°`/`76,32°` son de verdad los límites norte-sur de la cobertura (Mediterráneo/Norte de África hasta el Ártico noruego).
+- Las filas 3–6 comparten la misma franja `(b0,b1)=(13.8000, 12.8400)` y particionan la longitud en tramos **contiguos y sin solape**: `[-15.84,-2.16] → [-2.16,-0.72] → [-0.72,5.04] → [5.04,7.2]` — es una partición geográfica real de una franja en columnas, la firma inequívoca de un quadtree/R-tree.
+- Los valores de longitud (`-15.84°` a `7.2°`) son geográficamente plausibles para Europa occidental (Península Ibérica/Francia/Islas Británicas).
+- El campo `m2` **incrementa monótonamente** entre nodos hermanos (2429234 → 2464869 → 2516115 → 2589947 → 2629767) — probable ID de tile o puntero a los datos reales de ese tile (grafo de carreteras/geometría). Cuando la caja es un nodo "resumen"/raíz de nivel superior (filas 1 y 7), `m2=0xFFFFFFFF` (centinela "sin datos propios", coherente con el resto del formato HAF).
+
+## Lo que esto significa
+
+Es la **primera estructura de todo el paquete HERE, en 4+ sesiones de investigación, que decodifica de forma verificable a coordenadas geográficas reales de Europa** — no ruido, no ambigüedad de escala, con doble confirmación cruzada contra las constantes de cabecera de dos ficheros distintos.
+
+**No es (todavía) la posición de una cámara.** Es el nivel superior de un índice espacial que casi seguro se subdivide recursivamente hasta tiles mucho más pequeños con la geometría/topología real del grafo de rutas. `m2` es el candidato más fuerte a puntero hacia esos datos de nivel inferior.
+
+## Motivación original: ¿es esta la vía para resolver `LINK_ID` de `linked_records`?
+
+Pregunta que originó esta investigación: si `.haftlt` referencia posiciones vía `LINK_ID` en vez de coordenadas directas, y `SPEED_PATCH.db` solo cubre un subconjunto (segmentos con límite especial), quizás `.hafr` (el grafo de rutas **completo**) sí contenga el `LINK_ID` completo con el que cruzar `linked_records`. Este hallazgo del índice espacial es un subproducto de esa búsqueda — el siguiente paso lógico es recorrer el árbol hasta los nodos hoja para ver si ahí aparecen `LINK_ID` y/o geometría de segmento, y entonces sí cruzar contra `linked_records`.
+
+## Próximos pasos
+
+1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
+2. **Decodificar qué apunta `m2`** — ¿es un offset directo en el fichero? ¿Un índice a otra tabla? Probar ambas hipótesis con los valores ya extraídos (2429234, 2464869, 2516115...).
+3. Una vez localizados nodos hoja con geometría real, **cruzar contra las 759 coordenadas DGT** con prueba de permutación desde el principio (misma disciplina que el resto de la sesión).
+4. Si se llega a `LINK_ID` reales del grafo completo, repetir el cruce contra `linked_records` de `.haftlt` que hoy se descartó solo contra el subconjunto de `SPEED_PATCH.db`.
+
+Related: [`docs/haftlt_build_diff_260128.md`](haftlt_build_diff_260128.md), [`docs/hafls_tile_table.md`](hafls_tile_table.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
