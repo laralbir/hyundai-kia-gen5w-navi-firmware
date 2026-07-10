@@ -20,3 +20,6 @@ tools/**/*.pyc
 tools/**/.build/
 tools/**/.swiftpm/
 tools/**/*.xcodeproj/
+
+# Reignorar basura de Finder
+tools/**/.DS_Store
