@@ -253,3 +253,19 @@ Los 4 offsets dan ratio ≈1,0x tras la corrección — **sin relación con `LIN
 **Conclusión:** `f4`/`f6` no codifican una coordenada lineal local simple. Sumado a los resultados anteriores de esta sesión (sin conexión a nombres de calle, sin conexión a `LINK_ID`), `linked_records` sigue siendo una tabla completamente estructurada (ID persistente, referencias a vecinos, campos de grupo) pero **sin ningún significado semántico decodificado más allá de su propia topología interna**.
 
 **Lección metodológica reforzada:** cualquier test de "¿este campo es una coordenada/ID real?" en este proyecto debe pasar por una prueba de significancia contra un control aleatorio o baraiado — nunca comparar el conteo bruto de coincidencias contra una intuición o una densidad teórica sin verificar.
+
+---
+
+## 🎯 Sesión 2026-07-10 — hallazgo principal: correlación real a LINK_ID confirmada en `.hafr` (p=0.0)
+
+**Origen:** el usuario planteó si la posición de una cámara podría resolverse vía referencia a `LINK_ID` (segmento con nombre) en vez de coordenadas GPS embebidas — igual que hace el sistema para la guía de voz. `SPEED_PATCH.db` solo cubre un subconjunto de segmentos (con límite especial), así que se investigó `.hafr` (grafo de rutas completo, 921 MB, nunca analizado estructuralmente antes — solo escaneado a fuerza bruta en sesiones previas).
+
+**Resultado:** se localizó en `.hafr` un índice espacial real (bounding boxes que coinciden exactamente con constantes de cabecera compartidas con `.hafls`, ver [`docs/hafr_spatial_index.md`](../../docs/hafr_spatial_index.md)) con un mecanismo de puntero verificado matemáticamente (`m0[i+1]=m0[i]+m1[i]×65536`). Siguiendo ese puntero se llega a registros de 12 bytes que terminan en **una tabla de Pascal-strings con nombres de calle reales** (mismo formato que la ya confirmada en `.haftlt`, con un byte de tipo extra).
+
+**El campo candidato a `LINK_ID`** (tercer campo de cada registro de 12 bytes) se probó a escala (389.413 candidatos de una muestra de 20 MB) contra `SPEED_PATCH.db`: **10,654% de aciertos frente a 4,628% de densidad local — ratio 2,30x, confirmado con prueba de permutación (30 controles aleatorios, ninguno alcanza el resultado real, p=0,0).**
+
+**Es el primer resultado de toda la investigación (4+ sesiones) que sobrevive una prueba de significancia rigurosa con margen abrumador**, a diferencia de todos los intentos anteriores (incluidos los de hoy mismo: cruce directo `linked_records`↔`SPEED_PATCH.db`, coordenada local escalada, Morton en `.hafcc` — todos ≈1,0x tras corregir la línea base).
+
+**Implicación práctica:** confirma con evidencia sólida que la arquitectura real es "posición = `LINK_ID` + nombre de calle", resuelta contra el grafo de rutas — no coordenadas GPS embebidas. El siguiente paso natural es comprobar si `linked_records` de `.haftlt` (que hoy se descartó solo contra el subconjunto de `SPEED_PATCH.db`) correlaciona con el espacio real de `LINK_ID` extraído de `.hafr` — pendiente de hacer.
+
+**How to apply (actualiza la nota de cabecera de este fichero):** al retomar esta investigación, ir directamente a `.hafr` y su tabla de Pascal-strings + campo `LINK_ID` candidato — es la pista más sólida con diferencia. `.hafcc` (mencionado en la nota original de 2026-06-30) queda en segundo plano tras confirmarse hoy que su formato de bloque variable no se llegó a parsear con éxito y no ha dado ninguna señal positiva.

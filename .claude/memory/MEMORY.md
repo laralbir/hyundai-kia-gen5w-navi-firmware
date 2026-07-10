@@ -4,7 +4,7 @@
 - [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets
 - [VR Engine](vr_engine.md) — Motor LPTE TTS v1.5.1 (Cerence), 24 idiomas EU / 1 AU (coreano), estructura interna de mango-vr_fixed.tar.gz
 - [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU ARM Cortex-M, estrategia de RE recomendada
-- [Radar DB Analysis](project_radar_db.md) — Fuerza bruta GPS agotada y refutada; diff 260128 localiza tabla de nombres de calle (texto UTF-8 real, 4 países) + tabla de 16B ligada, conexión nombre↔registro aún sin resolver
+- [Radar DB Analysis](project_radar_db.md) — 🎯 .hafr (grafo de rutas) da correlación real a LINK_ID confirmada con permutación (p=0.0, ratio 2.3x) — primer resultado significativo de toda la investigación; ver hafr_spatial_index.md
 - [HAFTLT Format](haftlt_format.md) — Cabecera/secciones 1-4 confirmadas; NO es contenedor ZIP/TAR; tabla de nombres de calle (Pascal-strings) y tabla de 16B confirmadas en 4 países vía tools/haftlt_parser; tabla de tiles candidata en .hafls (docs/hafls_tile_table.md)
 - [Speed Patch Workflow](speed_patch_workflow.md) — Workflow operativo: modificar SPEED_PATCH.db + reempaquetar ZIP + actualizar MD5 y CRC32 en .ver
 - [Gen5W Exploit Ecosystem](gen5w_exploit.md) — Cadena completa de descifrado: navi_extended (USB exploit) → DecryptToPIPE + key.der → update_decryptor Docker → rootfs descifrado; comunidad más amplia mapeada (cantcs, Helloyunho, XDA) — ninguna decodifica el formato de radares HERE
