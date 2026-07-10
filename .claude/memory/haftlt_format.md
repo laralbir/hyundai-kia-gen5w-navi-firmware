@@ -260,7 +260,11 @@ fuente externa (BD pública DGT) o hasta entender la estructura real de la regi�
   su relación con "cantidad de cámaras" es dudosa: en Bélgica los `cnt` llegan a 7,296 y 7,260 para un país
   pequeño, lo que sugiere que cuentan **asociaciones cámara↔enlace de carretera**, no instalaciones físicas
 - **Campo header 0x80** = `(N << 24) | camera_region_start` donde N varía por país (17 en SPN, 9 en DNK,
-  1 en BEL) — fórmula confirmada aritméticamente, pero el significado de N (¿nº de tiles?) no está probado
+  1 en BEL) — fórmula confirmada aritméticamente, pero el significado de N (¿nº de tiles?) no está probado.
+  ⚠️ **`camera_region_start` REFUTADO como origen geográfico (sesión 2026-07-10):** sus valores (SPN=2.877.710,
+  AUT=1.421.024, DNK=1.145.102) coinciden exactamente con `sec4_end` de cada fichero (offsets ya conocidos
+  por los campos `0xA8`+`0xAC`) — es un campo redundante/derivado, no una pista hacia coordenadas. El nombre
+  original era una etiqueta especulativa incorrecta de una sesión antigua.
 
 ### Sub-descriptores de tipos (header 0xC4–0xFF) — estructura, no recuento de cámaras
 
