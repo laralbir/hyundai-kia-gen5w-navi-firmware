@@ -10,7 +10,13 @@ enum SearchMode: String, CaseIterable, Identifiable {
 
 @MainActor
 final class AppModel: ObservableObject {
-    // Ficheros cargados
+    // ZIP de mapas + país elegido
+    @Published var zipPath: String = ""
+    @Published var availableCountries: [String] = []
+    @Published var selectedCountry: String = ""
+    @Published var cacheDir: String = ""
+
+    // Ficheros ya extraídos (locales, cacheados junto al ZIP)
     @Published var haftltPath: String = ""
     @Published var speedPatchOriginalPath: String = ""
     @Published var writableDBPath: String = ""
@@ -35,9 +41,60 @@ final class AppModel: ObservableObject {
     @Published var statusIsError: Bool = false
     @Published var isLoading: Bool = false
 
-    func loadHaftlt(path: String) {
+    /// Ruta de ejemplo para orientar al usuario en el selector de ficheros.
+    /// No se usa como valor real -- es solo el texto de ayuda de la interfaz.
+    static let examplePath = "HU/images/navi_eu/S5W_MAP_ALL_EUR_18_49_56_023_631_5.zip"
+
+    // MARK: - Paso 1: elegir el ZIP y listar países
+
+    func loadZip(path: String) {
         isLoading = true
         defer { isLoading = false }
+        do {
+            let countries = try ZipTool.listCountries(zipPath: path)
+            guard !countries.isEmpty else {
+                setStatus("No se encontraron VIT_EUR_*.haftlt dentro de este ZIP -- ¿es el ZIP de mapas correcto?", error: true)
+                return
+            }
+            self.zipPath = path
+            self.availableCountries = countries
+            self.selectedCountry = countries.first ?? ""
+            let zipDir = (path as NSString).deletingLastPathComponent
+            self.cacheDir = zipDir + "/camera_editor_cache/"
+            try FileManager.default.createDirectory(atPath: cacheDir, withIntermediateDirectories: true)
+            setStatus("ZIP leído: \(countries.count) países disponibles (\(countries.joined(separator: ", ")))", error: false)
+        } catch {
+            setStatus("Error leyendo el ZIP: \(error.localizedDescription)", error: true)
+        }
+    }
+
+    /// Extrae (si hace falta) el .haftlt del país elegido y SPEED_PATCH.db
+    /// del ZIP, y los carga. Usa una caché local junto al ZIP para no
+    /// re-extraer en cada sesión.
+    func extractAndLoadFromZip() {
+        guard !zipPath.isEmpty, !selectedCountry.isEmpty else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let haftltEntry = ZipTool.haftltPrefix + selectedCountry + ZipTool.haftltSuffix
+            let haftltDest = cacheDir + "VIT_EUR_\(selectedCountry).haftlt"
+            setStatus("Extrayendo \(haftltEntry)…", error: false)
+            try ZipTool.extract(zipPath: zipPath, entry: haftltEntry, to: haftltDest)
+
+            let speedPatchDest = cacheDir + "SPEED_PATCH.db"
+            setStatus("Extrayendo SPEED_PATCH.db (153 MB, puede tardar unos segundos)…", error: false)
+            try ZipTool.extract(zipPath: zipPath, entry: ZipTool.speedPatchEntry, to: speedPatchDest)
+
+            loadHaftlt(path: haftltDest)
+            loadSpeedPatch(originalPath: speedPatchDest)
+        } catch {
+            setStatus("Error extrayendo del ZIP: \(error.localizedDescription)", error: true)
+        }
+    }
+
+    // MARK: - Paso 2: cargar ficheros ya extraídos (uso directo, sin ZIP)
+
+    func loadHaftlt(path: String) {
         do {
             let parsed = try HaftltParser.parse(path: path)
             self.haftltPath = path
@@ -53,8 +110,6 @@ final class AppModel: ObservableObject {
     }
 
     func loadSpeedPatch(originalPath: String) {
-        isLoading = true
-        defer { isLoading = false }
         let dest = (originalPath as NSString).deletingPathExtension + "_editable.db"
         do {
             try SpeedPatchStore.ensureWritableCopy(source: originalPath, dest: dest)
@@ -69,6 +124,33 @@ final class AppModel: ObservableObject {
             setStatus("Error cargando SPEED_PATCH.db: \(error.localizedDescription)", error: true)
         }
     }
+
+    // MARK: - Paso 3 (opcional, explícito): reinyectar cambios en una copia del ZIP
+
+    /// Actualiza SPEED_PATCH.db dentro de una copia del ZIP. Operación
+    /// potencialmente larga sobre un fichero de ~18 GB -- nunca se lanza
+    /// automáticamente, solo cuando el usuario pulsa el botón y confirma
+    /// una ruta de destino (por defecto NO es el ZIP original).
+    func writeBackToZip(destinationZip: String) {
+        guard let store, !writableDBPath.isEmpty else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            if destinationZip != zipPath {
+                setStatus("Copiando ZIP a \(destinationZip) antes de actualizar (puede tardar varios minutos, ~18 GB)…", error: false)
+                if !FileManager.default.fileExists(atPath: destinationZip) {
+                    try FileManager.default.copyItem(atPath: zipPath, toPath: destinationZip)
+                }
+            }
+            _ = store // la copia editable ya está en disco (writableDBPath)
+            try ZipTool.updateEntry(zipPath: destinationZip, entry: ZipTool.speedPatchEntry, withFile: writableDBPath)
+            setStatus("SPEED_PATCH.db actualizado dentro de \(destinationZip). Recuerda: falta recalcular MD5/CRC32 en Rio_MY22_EU.ver -- ver .claude/memory/speed_patch_workflow.md", error: false)
+        } catch {
+            setStatus("Error actualizando el ZIP: \(error.localizedDescription)", error: true)
+        }
+    }
+
+    // MARK: - Estado / utilidades comunes
 
     func setStatus(_ msg: String, error: Bool) {
         statusMessage = msg

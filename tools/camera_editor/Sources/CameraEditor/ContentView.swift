@@ -5,6 +5,7 @@ struct ContentView: View {
     @StateObject private var model = AppModel()
     @State private var editingRow: SpeedPatchRow?
     @State private var showingAddSheet = false
+    @State private var showingWriteBackSheet = false
 
     var body: some View {
         NavigationSplitView {
@@ -18,26 +19,66 @@ struct ContentView: View {
         .sheet(isPresented: $showingAddSheet) {
             EditSheet(model: model, existing: nil)
         }
+        .sheet(isPresented: $showingWriteBackSheet) {
+            WriteBackSheet(model: model)
+        }
     }
 
-    // MARK: Sidebar — carga de ficheros + búsqueda
+    // MARK: Sidebar — carga desde el ZIP + búsqueda
 
     private var sidebar: some View {
         Form {
-            Section("Ficheros") {
-                FilePickerRow(title: ".haftlt (p.ej. VIT_EUR_SPN.haftlt)", path: $model.haftltPath) { path in
-                    model.loadHaftlt(path: path)
+            Section("1. ZIP de mapas") {
+                Text("Ruta habitual: \(AppModel.examplePath)")
+                    .font(.caption2).foregroundStyle(.secondary)
+                HStack {
+                    Text(model.zipPath.isEmpty ? "(sin seleccionar)" : (model.zipPath as NSString).lastPathComponent)
+                        .font(.caption).lineLimit(1).truncationMode(.middle)
+                    Spacer()
+                    Button("Elegir ZIP…") {
+                        let panel = NSOpenPanel()
+                        panel.allowedContentTypes = [.zip]
+                        panel.canChooseDirectories = false
+                        if panel.runModal() == .OK, let url = panel.url {
+                            model.loadZip(path: url.path)
+                        }
+                    }
                 }
-                FilePickerRow(title: "SPEED_PATCH.db original", path: $model.speedPatchOriginalPath) { path in
-                    model.loadSpeedPatch(originalPath: path)
+
+                if !model.availableCountries.isEmpty {
+                    Picker("País", selection: $model.selectedCountry) {
+                        ForEach(model.availableCountries, id: \.self) { c in
+                            Text(c).tag(c)
+                        }
+                    }
+                    Button {
+                        model.extractAndLoadFromZip()
+                    } label: {
+                        Label("Extraer y cargar", systemImage: "archivebox")
+                    }
+                    .disabled(model.isLoading)
+                    Text("Se extrae a \(model.cacheDir) — solo la primera vez, luego queda cacheado.")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
-                if !model.writableDBPath.isEmpty {
-                    Text("Copia editable:\n\(model.writableDBPath)")
-                        .font(.caption).foregroundStyle(.secondary)
+
+                if model.isLoading {
+                    ProgressView().controlSize(.small)
                 }
             }
 
-            Section("Modo de búsqueda") {
+            if !model.writableDBPath.isEmpty {
+                Section("Guardar cambios") {
+                    Text("Copia editable:\n\(model.writableDBPath)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button {
+                        showingWriteBackSheet = true
+                    } label: {
+                        Label("Reinyectar en el ZIP…", systemImage: "square.and.arrow.down.on.square")
+                    }
+                }
+            }
+
+            Section("2. Buscar") {
                 Picker("", selection: $model.searchMode) {
                     ForEach(SearchMode.allCases) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -81,7 +122,7 @@ struct ContentView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 340)
+        .frame(minWidth: 360)
     }
 
     // MARK: Detalle — tabla SPEED_PATCH + acciones
@@ -137,33 +178,6 @@ struct ContentView: View {
     }
 }
 
-private struct FilePickerRow: View {
-    let title: String
-    @Binding var path: String
-    let onPick: (String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
-            HStack {
-                Text(path.isEmpty ? "(sin seleccionar)" : (path as NSString).lastPathComponent)
-                    .font(.caption).lineLimit(1).truncationMode(.middle)
-                Spacer()
-                Button("Elegir…") {
-                    let panel = NSOpenPanel()
-                    panel.allowsMultipleSelection = false
-                    panel.canChooseDirectories = false
-                    panel.canChooseFiles = true
-                    if panel.runModal() == .OK, let url = panel.url {
-                        path = url.path
-                        onPick(url.path)
-                    }
-                }
-            }
-        }
-    }
-}
-
 private struct EditSheet: View {
     @ObservedObject var model: AppModel
     let existing: SpeedPatchRow?
@@ -206,6 +220,53 @@ private struct EditSheet: View {
                 spLimit = "\(e.spLimit)"
                 vehicleType = "\(e.vehicleType)"
             }
+        }
+    }
+}
+
+private struct WriteBackSheet: View {
+    @ObservedObject var model: AppModel
+    @State private var destPath: String = ""
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Reinyectar SPEED_PATCH.db en el ZIP").font(.headline)
+            Text("Esta operación actualiza la entrada SPEED_PATCH.db dentro del ZIP de destino. Por defecto se propone una **copia nueva** del ZIP (no el original) — puede tardar varios minutos la primera vez por el tamaño (~18 GB). Elige el original solo si sabes lo que haces.")
+                .font(.caption).foregroundStyle(.secondary)
+
+            HStack {
+                TextField("ZIP de destino", text: $destPath)
+                Button("Elegir…") {
+                    let panel = NSSavePanel()
+                    panel.allowedContentTypes = [.zip]
+                    panel.nameFieldStringValue = ((model.zipPath as NSString).lastPathComponent as NSString).deletingPathExtension + "_editado.zip"
+                    if panel.runModal() == .OK, let url = panel.url {
+                        destPath = url.path
+                    }
+                }
+            }
+
+            Text("⚠️ Tras esto sigue haciendo falta recalcular MD5 y CRC32 en Rio_MY22_EU.ver antes de instalar — ver .claude/memory/speed_patch_workflow.md. Este botón NO hace esa parte.")
+                .font(.caption2).foregroundStyle(.orange)
+
+            HStack {
+                Spacer()
+                Button("Cancelar") { dismiss() }
+                Button("Reinyectar") {
+                    model.writeBackToZip(destinationZip: destPath.isEmpty ? model.zipPath : destPath)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(destPath.isEmpty)
+            }
+        }
+        .padding()
+        .frame(width: 460)
+        .onAppear {
+            let dir = (model.zipPath as NSString).deletingLastPathComponent
+            let base = ((model.zipPath as NSString).lastPathComponent as NSString).deletingPathExtension
+            destPath = dir + "/" + base + "_editado.zip"
         }
     }
 }
