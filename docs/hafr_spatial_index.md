@@ -58,6 +58,34 @@ Escaneando secuencialmente desde `0x308`: **6.776 registros válidos consecutivo
 
 **Conclusión de esta fase:** el array de cajas confirmado es solo la parte alta del índice espacial (~245 KB) — el resto del fichero (>99,9%) debe contener el grafo de enlaces/geometría real, con una estructura aún no localizada. Encontrarla es el verdadero objetivo para llegar a `LINK_ID` reales.
 
+## Mecanismo de puntero real localizado: `m0` (no `m2`)
+
+Reexaminando los 5 metadatos por registro (`m0`–`m4`), se encontró la relación matemática exacta entre filas consecutivas del mismo nivel:
+
+```
+m0[i+1] = m0[i] + m1[i] × 65536
+```
+
+Verificado con precisión exacta en las 5 filas de ejemplo (deltas de `m0`: 458.752, 458.752, 786.432, 524.288 — cada una es exactamente `m1[fila anterior] × 65.536`). Esto confirma que:
+
+- **`m1` es un conteo de bloques de 64 KB** (`0x10000`) que ocupa el subárbol/datos de ese nodo.
+- **`m0` es un offset acumulado en bytes**, directamente utilizable como posición absoluta en el fichero — a diferencia de `m2`, que no decodificaba a nada coherente al usarlo como offset.
+
+**Verificado como offset real:** los valores de `m0` (`458.752`, `917.504`, `1.703.936`, `2.228.224`) apuntan a contenido genuinamente distinto entre sí en cada caso — no relleno, no la misma estructura de caja repetida — consistente con ser **datos de payload por tile**, no más nodos del índice espacial.
+
+**Ejemplo del contenido en `m0=458.752` (offset `0x70000`):** un valor de 32 bits que se repite exactamente 3 veces (`166.461.471`) junto a contadores que incrementan ligeramente (`2.048.443 → 2.048.450 → 2.048.452`) y otro valor mayor que también incrementa (`1.102.842.348 → 1.103.301.100`). Patrón compatible con un **ID de tile compartido + sub-índices locales** (un esquema clásico de clave compuesta `tile_id:local_id`).
+
+**Probado contra `SPEED_PATCH.db`:** `166.461.471` no coincide con ningún `LINK_ID` real (ni exacto ni en un margen de ±1.000) — pero tampoco se esperaba coincidencia directa: ese valor **supera el `LINK_ID` máximo de `SPEED_PATCH.db`** (153.433.402), coherente con la hipótesis de que `SPEED_PATCH.db` solo cubre un subconjunto de segmentos con límite especial, mientras que `.hafr` referenciaría el espacio completo de la red.
+
+## Estado al cierre de esta fase
+
+**Lo que está verificado con solidez matemática, no solo visual:**
+- El índice espacial de tiles (bounding boxes reales de Europa, confirmadas contra constantes de cabecera compartidas con `.hafls`).
+- El mecanismo de puntero `m0`/`m1` (relación aritmética exacta, no una coincidencia de unos pocos casos).
+- La localización de datos de payload genuinamente distintos en cada destino de `m0`.
+
+**Lo que queda sin resolver:** el formato interno de los registros de payload (a qué corresponde el "ID de tile" repetido, cómo se codifican los enlaces/nodos individuales dentro de un tile, y cómo llegar de ahí a un `LINK_ID` o coordenada verificable). Es un sub-problema de formato nuevo y distinto del índice espacial — no se ha resuelto en esta sesión.
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
