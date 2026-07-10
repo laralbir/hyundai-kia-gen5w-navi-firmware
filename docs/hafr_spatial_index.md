@@ -110,6 +110,23 @@ Prueba de permutación (30 controles aleatorios en el mismo rango):
 
 **Confirma con evidencia sólida la hipótesis original del usuario:** la ubicación de una cámara/hazard en este ecosistema muy probablemente se resuelve vía referencia a `LINK_ID` (segmento de carretera con nombre), no vía coordenadas GPS embebidas directamente — el sistema de navegación resuelve la posición real cruzando el `LINK_ID` contra el grafo de rutas/mapa base, igual que hace para la guía de voz.
 
+## 🎯🎯 Cierre del círculo: `linked_records` de `.haftlt` SÍ correlaciona con LINK_ID real (confirmado, p=0.0)
+
+Con el conjunto de ~6M de candidatos a `LINK_ID` extraídos de `.hafr` (en vez de solo el subconjunto parcial de `SPEED_PATCH.db`), se repitió el test que por la mañana había dado negativo sobre `linked_records` de `.haftlt` (España, 23.528 registros) — **esta vez con resultado positivo y masivo en las 4 combinaciones posibles de campos**:
+
+| Campo (u32 = lo\|hi<<16) | Candidatos en rango | Aciertos | Ratio vs densidad local | Permutación (30 controles) |
+|---|---|---|---|---|
+| `f0`/`f1` | 23.528 | 3.670 (15,60%) | **4,05x** | controles en [841,940], real muy por encima |
+| `f2`/`f3` | 1.918 | 1.303 (67,94%) | **16,62x** | controles en [59,92], **p=0,0** |
+| `f4`/`f5` | 6.284 | 2.089 (33,24%) | **8,60x** | controles en [223,265], real muy por encima |
+| `f6`/`f7` | 19.380 | 3.884 (20,04%) | **5,11x** | controles en [708,831], **p=0,0** |
+
+**Las cuatro combinaciones muestran correlación masiva y estadísticamente inequívoca** — nada parecido a los resultados de esta misma mañana (todos ≈1,0x tras corrección) ni a los falsos positivos previos de la sesión. El motivo por el que el test de la mañana contra `SPEED_PATCH.db` directamente dio negativo: `SPEED_PATCH.db` solo cubre un subconjunto (segmentos con límite de velocidad especial, 7,1M de un espacio bastante más grande), mientras que los candidatos extraídos de `.hafr` cubren el espacio real completo de `LINK_ID` de la red de carreteras.
+
+**Conclusión de la sesión:** queda confirmado con evidencia estadística sólida (no solo estructural) que **`linked_records` de `.haftlt` referencia `LINK_ID` reales de la red de carreteras HERE** — validando por completo la hipótesis original del usuario: la posición de una cámara/hazard se resuelve vía referencia a un segmento de carretera con nombre (`LINK_ID` + tabla de nombres de calle), no vía coordenadas GPS embebidas directamente en el registro. Es la primera vez en 4+ sesiones de investigación que se establece una conexión semántica verificada y estadísticamente robusta entre un campo de `.haftlt` y un identificador real del ecosistema HERE.
+
+**Implicación práctica para "añadir un radar":** el camino ya no es "encontrar una coordenada GPS que insertar" — es **"encontrar el `LINK_ID` real del segmento de carretera deseado (vía el mapa base/`.hafr`) y escribirlo en el campo correspondiente de un registro nuevo en `linked_records`"**, junto con el nombre de calle correcto en la tabla de Pascal-strings adyacente. Sigue sin resolverse con precisión total cuál de los 4 campos es el "principal" (los 4 muestran señal, posiblemente por redundancia o por codificar relaciones distintas: enlace propio, enlace anterior/siguiente, etc.) y cuál es exactamente el formato para insertar una entrada nueva de forma segura (recalcular `record_count`, mantener consistencia con las referencias de vecino `f2`/`f3`, etc.) — pero el bloqueo conceptual de "no sabemos qué representa la posición" queda resuelto.
+
 ## Próximos pasos
 
 1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
