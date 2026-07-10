@@ -32,6 +32,18 @@ A diferencia de `.hafr` (donde el mismo patrón de "tripleta de 12 bytes + nombr
 
 **No se ha logrado** en esta sesión extraer una coordenada real verificable, ni confirmar el vínculo `LINK_ID → geometría` dentro de `.hafp`. Es un hallazgo de localización (qué partición, qué formato de nombre) pero no de decodificación.
 
+## Intentos adicionales (misma sesión) — todos sin señal
+
+Tras localizar la partición de España, se probaron tres estrategias adicionales, ninguna con resultado:
+
+1. **Patrón de caja delimitadora de 36 bytes** (el que sí funcionó en `.hafr`) aplicado a `.hafgsi` (Global Spatial Index, 274 MB): el primer "tramo largo" encontrado (2,77M registros) resultó ser una región enorme de **relleno con ceros**, no datos reales — falso positivo por criterio de filtro demasiado laxo. Con un filtro que exige magnitud no trivial (≥1°), no aparece ningún tramo contiguo real.
+2. **Índice de tiles con stride ~12,58M** en la cabecera de `.hafgsi` (mismo tipo de mecanismo acumulativo que `m0`/`m1` en `.hafr`, campos distintos): solo cubre 512 entradas (~6 KB) antes de transicionar a otra estructura — el último valor acumulado (2.141.192.384) supera el tamaño del propio fichero, sugiriendo que podría ser un offset hacia una estructura mayor (los `.hafp` combinados, ~15 GB) pero no verificado.
+3. **Búsqueda directa de `LINK_ID` reales conocidos** (ya confirmados contra `SPEED_PATCH.db`, p. ej. `13.651.268`, `14.909.134`) como valor `u32` literal dentro de `hafp03`: 2 de 7 aparecieron, pero el contexto alrededor no muestra ninguna estructura reconocible — consistente con coincidencia estadística (con 7 valores de 32 bits en 621 MB, la probabilidad de al menos 1 acierto por azar es ~14,5% por valor, así que 2/7 no es una señal por encima del azar).
+
+## Conclusión de esta sesión
+
+**Sin resolver.** A diferencia de `.hafr` (donde el mismo tipo de búsqueda dio una señal limpia en relativamente poco tiempo), `.hafp`/`.hafgsi` no han producido ningún ancla estructural fiable pese a probar cuatro enfoques distintos (patrón de tiles, búsqueda de cadena, índice acumulativo, búsqueda directa de valor). Es plausible que la geometría real requiera resolver primero un índice `LINK_ID`→tile que no se ha localizado, o que el camino más fiable sea leer el parser real (`appnavi`, cifrado) en vez de seguir infiriendo desde fuera — coherente con la conclusión ya alcanzada hoy para otros ficheros del paquete.
+
 ## Próximos pasos
 
 1. **Decodificar el patrón de cabecera regular** (`1.667.235.840` + contador + `-16,7772°` + centinela + hash) — parece la pista más prometedora, análoga al índice de tiles de `.hafr`.
