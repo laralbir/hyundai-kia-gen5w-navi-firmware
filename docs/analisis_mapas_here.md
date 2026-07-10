@@ -161,6 +161,21 @@ Los registros con `VEHICLE_TYPE=7` (solo coches/motos) son los más frecuentes p
 - `1` = sentido contrario (B→A)
 - `2` = ambas direcciones (vías de doble sentido con mismo límite)
 
+### 4.2.1 ⚠️ El esquema cambia entre builds (descubierto 2026-07-10)
+
+La versión de mapas `18.52.70.012.632.5` (build `260128`) usa un esquema **sin** `VEHICLE_TYPE`:
+
+```sql
+CREATE TABLE SPEED_PATCH (LINK_ID INT64, DIR INT, SP_LIMIT INT,
+    PRIMARY KEY(LINK_ID, DIR)) WITHOUT ROWID;
+-- 8.311.861 filas (frente a 10.353.101 en 18.49.56.023.631.5)
+```
+
+Cualquier herramienta que consulte esta tabla debe comprobar el esquema real
+(`PRAGMA table_info(SPEED_PATCH)`) en vez de asumir la columna `VEHICLE_TYPE`
+— ver `tools/camera_editor` para una implementación que se adapta a ambas
+variantes automáticamente.
+
 ---
 
 ## 5. Datos de radares y seguridad vial

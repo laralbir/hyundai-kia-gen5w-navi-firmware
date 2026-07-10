@@ -146,7 +146,7 @@ struct ContentView: View {
                 TableColumn("LINK_ID") { row in Text("\(row.linkId)").monospaced() }
                 TableColumn("DIR") { row in Text(dirLabel(row.dir)) }
                 TableColumn("SP_LIMIT") { row in Text("\(row.spLimit) km/h") }
-                TableColumn("VEHICLE_TYPE") { row in Text("\(row.vehicleType)") }
+                TableColumn("VEHICLE_TYPE") { row in Text(row.vehicleType.map { "\($0)" } ?? "—") }
                 TableColumn("") { row in
                     HStack {
                         Button("Editar") { editingRow = row }
@@ -198,13 +198,20 @@ private struct EditSheet: View {
                 Text("2 (ambos)").tag(2)
             }
             TextField("SP_LIMIT (km/h)", text: $spLimit)
-            TextField("VEHICLE_TYPE", text: $vehicleType)
+            if model.store?.hasVehicleType ?? true {
+                TextField("VEHICLE_TYPE", text: $vehicleType)
+            } else {
+                Text("Esta build de SPEED_PATCH.db no tiene columna VEHICLE_TYPE (build ≥ 260128).")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
 
             HStack {
                 Spacer()
                 Button("Cancelar") { dismiss() }
                 Button(existing == nil ? "Añadir" : "Guardar") {
-                    guard let lid = Int64(linkId), let sp = Int(spLimit), let vt = Int(vehicleType) else { return }
+                    guard let lid = Int64(linkId), let sp = Int(spLimit) else { return }
+                    let hasVT = model.store?.hasVehicleType ?? true
+                    let vt: Int? = hasVT ? (Int(vehicleType) ?? 0) : nil
                     model.save(linkId: lid, dir: dir, spLimit: sp, vehicleType: vt)
                     dismiss()
                 }
@@ -218,7 +225,7 @@ private struct EditSheet: View {
                 linkId = "\(e.linkId)"
                 dir = e.dir
                 spLimit = "\(e.spLimit)"
-                vehicleType = "\(e.vehicleType)"
+                vehicleType = e.vehicleType.map { "\($0)" } ?? "0"
             }
         }
     }

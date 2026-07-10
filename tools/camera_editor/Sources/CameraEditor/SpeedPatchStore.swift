@@ -5,8 +5,8 @@ struct SpeedPatchRow: Identifiable, Hashable {
     let linkId: Int64
     let dir: Int
     let spLimit: Int
-    let vehicleType: Int
-    var id: String { "\(linkId)-\(dir)-\(vehicleType)" }
+    let vehicleType: Int?  // nil si esta build de SPEED_PATCH.db no tiene esa columna
+    var id: String { "\(linkId)-\(dir)-\(vehicleType ?? -1)" }
 }
 
 enum SpeedPatchError: Error, LocalizedError {
@@ -25,9 +25,15 @@ enum SpeedPatchError: Error, LocalizedError {
 /// contra una COPIA editable local -- nunca contra el fichero original
 /// extraído del ZIP de mapas. Ver .claude/memory/speed_patch_workflow.md
 /// para el flujo completo de reempaquetado tras editar.
+///
+/// El esquema de SPEED_PATCH.db NO es idéntico entre builds: la build
+/// 260128 (2025-11-22) eliminó la columna VEHICLE_TYPE por completo
+/// (clave primaria pasó de LINK_ID+DIR+VEHICLE_TYPE a solo LINK_ID+DIR).
+/// Se detecta en tiempo de apertura vía PRAGMA table_info y se adapta.
 final class SpeedPatchStore {
     private var db: OpaquePointer?
     let path: String
+    let hasVehicleType: Bool
 
     init(path: String) throws {
         self.path = path
@@ -35,10 +41,28 @@ final class SpeedPatchStore {
             let msg = String(cString: sqlite3_errmsg(db))
             throw SpeedPatchError.openFailed(msg)
         }
+        self.hasVehicleType = Self.detectVehicleTypeColumn(db: db)
     }
 
     deinit {
         sqlite3_close(db)
+    }
+
+    private static func detectVehicleTypeColumn(db: OpaquePointer?) -> Bool {
+        var stmt: OpaquePointer?
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(SPEED_PATCH)", -1, &stmt, nil) == SQLITE_OK else {
+            return true // por defecto asumir el esquema "clasico" si no se puede comprobar
+        }
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let cName = sqlite3_column_text(stmt, 1) {
+                let name = String(cString: cName)
+                if name.caseInsensitiveCompare("VEHICLE_TYPE") == .orderedSame {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     /// Crea una copia editable de `sourcePath` en `destPath` si no existe ya.
@@ -58,9 +82,13 @@ final class SpeedPatchStore {
         return stmt
     }
 
+    private var selectColumns: String {
+        hasVehicleType ? "LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE" : "LINK_ID, DIR, SP_LIMIT"
+    }
+
     /// Listado paginado de TODAS las filas (orden por LINK_ID).
     func browse(offset: Int, limit: Int) throws -> [SpeedPatchRow] {
-        let sql = "SELECT LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE FROM SPEED_PATCH ORDER BY LINK_ID LIMIT ? OFFSET ?"
+        let sql = "SELECT \(selectColumns) FROM SPEED_PATCH ORDER BY LINK_ID LIMIT ? OFFSET ?"
         guard let stmt = try prepare(sql) else { return [] }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int(stmt, 1, Int32(limit))
@@ -78,7 +106,7 @@ final class SpeedPatchStore {
     }
 
     func search(linkId: Int64) throws -> [SpeedPatchRow] {
-        guard let stmt = try prepare("SELECT LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE FROM SPEED_PATCH WHERE LINK_ID = ?") else { return [] }
+        guard let stmt = try prepare("SELECT \(selectColumns) FROM SPEED_PATCH WHERE LINK_ID = ?") else { return [] }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int64(stmt, 1, linkId)
         return readRows(stmt)
@@ -87,7 +115,7 @@ final class SpeedPatchStore {
     func search(linkIds: [Int64], limit: Int = 500) throws -> [SpeedPatchRow] {
         guard !linkIds.isEmpty else { return [] }
         let placeholders = Array(repeating: "?", count: linkIds.count).joined(separator: ",")
-        let sql = "SELECT LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE FROM SPEED_PATCH WHERE LINK_ID IN (\(placeholders)) ORDER BY LINK_ID LIMIT \(limit)"
+        let sql = "SELECT \(selectColumns) FROM SPEED_PATCH WHERE LINK_ID IN (\(placeholders)) ORDER BY LINK_ID LIMIT \(limit)"
         guard let stmt = try prepare(sql) else { return [] }
         defer { sqlite3_finalize(stmt) }
         for (i, lid) in linkIds.enumerated() {
@@ -103,35 +131,51 @@ final class SpeedPatchStore {
                 linkId: sqlite3_column_int64(stmt, 0),
                 dir: Int(sqlite3_column_int(stmt, 1)),
                 spLimit: Int(sqlite3_column_int(stmt, 2)),
-                vehicleType: Int(sqlite3_column_int(stmt, 3))
+                vehicleType: hasVehicleType ? Int(sqlite3_column_int(stmt, 3)) : nil
             ))
         }
         return rows
     }
 
-    /// Añade o actualiza (misma clave primaria LINK_ID+DIR+VEHICLE_TYPE).
-    func upsert(linkId: Int64, dir: Int, spLimit: Int, vehicleType: Int) throws {
-        let sql = """
-            INSERT INTO SPEED_PATCH (LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE) VALUES (?,?,?,?)
-            ON CONFLICT(LINK_ID, DIR, VEHICLE_TYPE) DO UPDATE SET SP_LIMIT=excluded.SP_LIMIT
-            """
+    /// Añade o actualiza. Clave primaria LINK_ID+DIR+VEHICLE_TYPE si esta
+    /// build tiene esa columna, o solo LINK_ID+DIR si no (build >= 260128).
+    func upsert(linkId: Int64, dir: Int, spLimit: Int, vehicleType: Int?) throws {
+        let sql: String
+        if hasVehicleType {
+            sql = """
+                INSERT INTO SPEED_PATCH (LINK_ID, DIR, SP_LIMIT, VEHICLE_TYPE) VALUES (?,?,?,?)
+                ON CONFLICT(LINK_ID, DIR, VEHICLE_TYPE) DO UPDATE SET SP_LIMIT=excluded.SP_LIMIT
+                """
+        } else {
+            sql = """
+                INSERT INTO SPEED_PATCH (LINK_ID, DIR, SP_LIMIT) VALUES (?,?,?)
+                ON CONFLICT(LINK_ID, DIR) DO UPDATE SET SP_LIMIT=excluded.SP_LIMIT
+                """
+        }
         guard let stmt = try prepare(sql) else { return }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int64(stmt, 1, linkId)
         sqlite3_bind_int(stmt, 2, Int32(dir))
         sqlite3_bind_int(stmt, 3, Int32(spLimit))
-        sqlite3_bind_int(stmt, 4, Int32(vehicleType))
+        if hasVehicleType {
+            sqlite3_bind_int(stmt, 4, Int32(vehicleType ?? 0))
+        }
         if sqlite3_step(stmt) != SQLITE_DONE {
             throw SpeedPatchError.queryFailed(String(cString: sqlite3_errmsg(db)))
         }
     }
 
-    func delete(linkId: Int64, dir: Int, vehicleType: Int) throws {
-        guard let stmt = try prepare("DELETE FROM SPEED_PATCH WHERE LINK_ID=? AND DIR=? AND VEHICLE_TYPE=?") else { return }
+    func delete(linkId: Int64, dir: Int, vehicleType: Int?) throws {
+        let sql = hasVehicleType
+            ? "DELETE FROM SPEED_PATCH WHERE LINK_ID=? AND DIR=? AND VEHICLE_TYPE=?"
+            : "DELETE FROM SPEED_PATCH WHERE LINK_ID=? AND DIR=?"
+        guard let stmt = try prepare(sql) else { return }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int64(stmt, 1, linkId)
         sqlite3_bind_int(stmt, 2, Int32(dir))
-        sqlite3_bind_int(stmt, 3, Int32(vehicleType))
+        if hasVehicleType {
+            sqlite3_bind_int(stmt, 3, Int32(vehicleType ?? 0))
+        }
         if sqlite3_step(stmt) != SQLITE_DONE {
             throw SpeedPatchError.queryFailed(String(cString: sqlite3_errmsg(db)))
         }

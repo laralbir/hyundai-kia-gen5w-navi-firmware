@@ -202,11 +202,12 @@ final class AppModel: ObservableObject {
     func nextPage() { page += 1; refresh() }
     func prevPage() { if page > 0 { page -= 1; refresh() } }
 
-    func save(linkId: Int64, dir: Int, spLimit: Int, vehicleType: Int) {
+    func save(linkId: Int64, dir: Int, spLimit: Int, vehicleType: Int?) {
         guard let store else { return }
         do {
             try store.upsert(linkId: linkId, dir: dir, spLimit: spLimit, vehicleType: vehicleType)
-            setStatus("Guardado LINK_ID=\(linkId) DIR=\(dir) SP_LIMIT=\(spLimit) VEHICLE_TYPE=\(vehicleType)", error: false)
+            let vtPart = store.hasVehicleType ? " VEHICLE_TYPE=\(vehicleType ?? 0)" : ""
+            setStatus("Guardado LINK_ID=\(linkId) DIR=\(dir) SP_LIMIT=\(spLimit)\(vtPart)", error: false)
             refresh()
         } catch {
             setStatus("Error al guardar: \(error.localizedDescription)", error: true)
@@ -217,7 +218,8 @@ final class AppModel: ObservableObject {
         guard let store else { return }
         do {
             try store.delete(linkId: row.linkId, dir: row.dir, vehicleType: row.vehicleType)
-            setStatus("Borrado LINK_ID=\(row.linkId) DIR=\(row.dir) VEHICLE_TYPE=\(row.vehicleType)", error: false)
+            let vtPart = row.vehicleType.map { " VEHICLE_TYPE=\($0)" } ?? ""
+            setStatus("Borrado LINK_ID=\(row.linkId) DIR=\(row.dir)\(vtPart)", error: false)
             refresh()
         } catch {
             setStatus("Error al borrar: \(error.localizedDescription)", error: true)

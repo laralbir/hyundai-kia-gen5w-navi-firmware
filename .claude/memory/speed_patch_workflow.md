@@ -142,4 +142,23 @@ Rio_MY22_EU\HU\images\navi_eu|EUR.18.49.56.023.631.5_md5.txt|308439|<crc_signed>
 2. **¿Verifica appnavi checksums internos de SPEED_PATCH.db?** Posible — si tiene hash interno, la modificación se detectaría sin cambiar el resultado visible
 3. **¿El cambio en SP_LIMIT activa alertas de radar?** Depende de si la app diferencia "límite de mapa HERE" vs "posición de cámara"
 
+## ⚠️ El esquema de SPEED_PATCH.db cambió entre builds (descubierto 2026-07-10 con `tools/camera_editor`)
+
+La build `260128` (mapas `18.52.70.012.632.5`, en `/Users/carlos/Downloads/NaU/`) tiene un esquema **distinto** al de `251204` documentado arriba:
+
+```sql
+-- 251204 (esta memoria, arriba): 10.353.101 filas
+CREATE TABLE SPEED_PATCH (LINK_ID INT64, DIR INT, SP_LIMIT INT, VEHICLE_TYPE INT,
+    PRIMARY KEY(LINK_ID, DIR, VEHICLE_TYPE)) WITHOUT ROWID;
+
+-- 260128: 8.311.861 filas -- VEHICLE_TYPE ELIMINADA POR COMPLETO
+CREATE TABLE SPEED_PATCH (LINK_ID INT64, DIR INT, SP_LIMIT INT,
+    PRIMARY KEY(LINK_ID, DIR)) WITHOUT ROWID;
+```
+
+**Implicaciones:**
+- Cualquier script/herramienta que asuma la columna `VEHICLE_TYPE` fallará contra builds ≥260128 (`no such column: VEHICLE_TYPE`) — comprobar el esquema con `PRAGMA table_info(SPEED_PATCH)` antes de asumirlo, no confiar en esta memoria como verdad universal para todas las versiones.
+- El recuento de filas bajó de 10,35M a 8,31M (−2,04M) — coherente con haber colapsado múltiples filas por-tipo-de-vehículo en una sola fila genérica por segmento, no con haber perdido cobertura geográfica.
+- `tools/camera_editor` (app SwiftUI) detecta el esquema en tiempo de apertura vía `PRAGMA table_info` y se adapta automáticamente a ambas variantes.
+
 Related: [[haftlt-format]] · [[project-radar-db]] · [[haf-format]]
