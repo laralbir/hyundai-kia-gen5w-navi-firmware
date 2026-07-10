@@ -158,11 +158,26 @@ El hallazgo de hoy resuelve el bloqueo **conceptual** (qué representa la posici
 
 **Balance honesto:** hoy se resolvió la pregunta más importante y más buscada de toda la investigación ("¿qué es la posición?"), con la prueba más sólida de toda la sesión. Pero "añadir un radar nuevo de forma seguramente aceptada por el sistema" sigue teniendo piezas sin resolver — es un avance real y grande, no la solución completa.
 
-## Próximos pasos
+## Próximos pasos (actualizado — pasos 2-4 originales ya resueltos)
 
-1. **Recorrer el árbol recursivamente** desde los nodos raíz encontrados aquí, siguiendo la subdivisión geográfica hasta llegar a un nivel de detalle calle/tramo (o hasta que `m2` deje de apuntar a más nodos-caja y empiece a apuntar a datos de otro tipo).
-2. **Decodificar qué apunta `m2`** — ¿es un offset directo en el fichero? ¿Un índice a otra tabla? Probar ambas hipótesis con los valores ya extraídos (2429234, 2464869, 2516115...).
-3. Una vez localizados nodos hoja con geometría real, **cruzar contra las 759 coordenadas DGT** con prueba de permutación desde el principio (misma disciplina que el resto de la sesión).
-4. Si se llega a `LINK_ID` reales del grafo completo, repetir el cruce contra `linked_records` de `.haftlt` que hoy se descartó solo contra el subconjunto de `SPEED_PATCH.db`.
+~~2. Decodificar qué apunta `m2`~~ → **resuelto**: no es `m2`, es `m0` (offset acumulado, fórmula `m0[i+1]=m0[i]+m1[i]×65536`, verificada).
+~~3. Cruzar contra DGT con permutación~~ → **superado**: se encontró algo más fuerte — cruce directo contra `SPEED_PATCH.db` con permutación, p=0.0.
+~~4. Cruzar `LINK_ID` reales contra `linked_records`~~ → **resuelto**: confirmado en las 4 combinaciones de campos (ratios 4x–16,6x, ver sección "Cierre del círculo" arriba).
+
+**Lo único que sigue genuinamente abierto:**
+
+1. **El payload en `m0` da `LINK_ID` + nombre de calle, pero no coordenadas.** Para el editor con mapa real hace falta lat/lon, no solo el identificador — pendiente de encontrar si el payload contiene también geometría (puntos de forma del segmento) en algún campo no examinado todavía, o en una región adyacente no explorada.
+2. Recorrer el árbol más allá del primer `m0` explorado (`458.752`) para ver si otros nodos raíz llevan a payloads con estructura distinta (p. ej. datos de geometría en vez de nombre+ID).
+3. Explorado en paralelo (misma sesión, sin éxito): `.hafp` (partición de España `hafp03` localizada, pero sin encontrar el enlace `LINK_ID`→geometría) y `.hafgsi` (índice espacial global, mismo tipo de mecanismo acumulativo pero sin llegar a datos útiles) — ver [`docs/hafp_geometry_search.md`](hafp_geometry_search.md).
+
+## Intento de localizar el tile de España en el árbol raíz — sin éxito
+
+Se probó el campo `m4` (nunca antes verificado) como posible puntero adicional — a diferencia de `m0`, sus valores de destino son mucho más pequeños y "redondos" (múltiplos de ~10.000 al dividir por 1e6), compatible con ser **deltas relativos al origen del tile** en vez de grados absolutos — hipótesis no confirmada.
+
+Antes de decodificar `m4`, se intentó localizar qué tile raíz cubre España peninsular cruzando los **759 puntos DGT reales** contra las cajas delimitadoras de los primeros 6.776 registros raíz: **0 coincidencias.** El rango global de latitud de esos 6.776 tiles es `[0°, 33°]` — **no llega a cubrir España** (36°–44°N). Probando el intercambio de ejes (lat↔lon) tampoco da una señal clara (13/759, dentro de lo esperable por azar dado el solapamiento parcial de rango).
+
+Se buscó un segundo tramo de cajas válidas más adelante en el fichero (tras la transición en `0x3bbe8`) — apareció un tramo de 4.713 registros, pero con valores repetidos y magnitudes bajas no compatibles con ser cajas geográficas limpias como las del tramo raíz original.
+
+**Conclusión:** el tile (o rama del árbol) que cubre España peninsular no se ha localizado en esta sesión. Sin él, no se puede verificar la hipótesis de `m4` como delta de geometría ni avanzar hacia coordenadas reales verificables. Sigue siendo la pista más prometedora de todo el paquete, pero no se ha llegado a coordenadas reales pese al esfuerzo dedicado hoy.
 
 Related: [`docs/haftlt_build_diff_260128.md`](haftlt_build_diff_260128.md), [`docs/hafls_tile_table.md`](hafls_tile_table.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
