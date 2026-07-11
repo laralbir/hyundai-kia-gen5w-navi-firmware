@@ -186,13 +186,17 @@ USB:/
 
 ### 2.1 Preparar el directorio de trabajo
 
+> **⚠️ Corrección (validada con dry-run 2026-07-11, ver [docs/gen5w_exploit_ecosystem.md](../docs/gen5w_exploit_ecosystem.md#validación-práctica-del-pipeline-dry-run-sin-hu-físico)):**
+> `DecryptToPIPE` y `decryption_key.der` **NO se montan como volumen en runtime** — el `Dockerfile` de `update_decryptor` hace `COPY ./ /` en tiempo de build, así que se incrustan en la imagen. El volumen `-v keys:/DecryptToPIPE_dir` de versiones anteriores de esta guía **no tenía ningún efecto** (ruta muerta, `entrypoint.sh` busca `/DecryptToPIPE` y `/decryption_key.der` en la raíz). Hay que **reemplazar los placeholders del repo antes de construir la imagen**.
+
 ```bash
-cd tools/phase2_decrypt/
+cd tools/update_decryptor/
 
-# Copiar los archivos obtenidos del HU:
-cp /Volumes/USB/DecryptToPIPE     keys/
-cp /Volumes/USB/decryption_key.der keys/
+# Sustituir los placeholders por los archivos reales obtenidos del HU:
+cp /Volumes/USB/DecryptToPIPE      ./DecryptToPIPE
+cp /Volumes/USB/decryption_key.der ./decryption_key.der
 
+cd ../phase2_decrypt/
 # Copiar los archivos OTA cifrados a descifrar:
 cp /path/to/Rio_MY22_EU/HU/images/mango-rootfs.tar.gz       ota_files/
 cp /path/to/Rio_MY22_EU/HU/images/new_gui.tar.gz            ota_files/
@@ -205,14 +209,13 @@ cp /path/to/Rio_MY22_EU/HU/images/navi_eu/appnavi.tar        ota_files/
 ### 2.2 Ejecutar update_decryptor
 
 ```bash
-# Construir la imagen
+# Construir la imagen (con DecryptToPIPE + decryption_key.der reales ya copiados dentro)
 cd ../update_decryptor/
 docker build -t gen5wdecryptor ./
 
-# Ejecutar contra los archivos OTA
+# Ejecutar solo contra los archivos OTA — sin volumen de claves, ya están en la imagen
 cd ../phase2_decrypt/
 docker run --rm -it \
-  -v $PWD/keys:/DecryptToPIPE_dir \
   -v $PWD/ota_files:/mnt \
   gen5wdecryptor
 ```
