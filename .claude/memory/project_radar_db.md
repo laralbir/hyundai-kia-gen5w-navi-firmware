@@ -311,3 +311,11 @@ Después se probó usar la adyacencia ya confirmada (`f2`/`f3` = índice ±1) pa
 **Herramienta final:** `tools/haftlt_explorer/` (renombrada desde `haftlt_graph_viewer/`) — tabla buscable/filtrable/ordenable de los hechos verificados (adyacencia, `LINK_ID`, límite real), sin ningún dibujo de conjunto ni layout. Al hacer click en una fila se ven solo sus 0-2 vecinos directos. Detalle completo, incluida la imagen de control que desmontó el layout: `docs/road_network_topology.md`.
 
 **Lección reforzada:** una verificación visual sin control (comparar contra datos sintéticos del mismo tipo estructural) es tan poco fiable como un conteo bruto sin prueba de permutación — aplicar el mismo estándar de rigor a ambas.
+
+### 🎯 Continuación — documentación pública de NDS encontrada; algoritmo exacto probado, sigue negativo
+
+El usuario preguntó si existe documentación abierta del formato HERE en vez de seguir con ingeniería inversa pura. Se encontró: HERE es miembro de la NDS Association, que mantiene **`github.com/ndsev`** público (BSD-3-Clause) — el repo **`ndslive-math`** da la implementación de referencia EXACTA (no aproximada de patente) de WGS84↔coordenadas NDS↔código Morton y `PackedTileId`, en 5 lenguajes con vectores de prueba. Colateral: `.hafmma` confirmado en fuente independiente (filext.com) como formato de sistemas Mobis AVN Hyundai/Kia — exactamente nuestra plataforma.
+
+Por precaución de seguridad (el harness bloqueó ejecutar directamente el código de terceros descargado, correctamente) se reimplementó el algoritmo a mano, verificado con roundtrip Madrid. Probado rigurosamente (784 radares DGT reales, proximidad ≤2,2km, no solo "cae en España") contra `linked_records` (5 ventanas × 23.528 registros), la rama de España en `.hafr` (393KB), y `.hafp03` (60MB): el único candidato con conteo alto (`.hafp03`, 26 hits) se descarta con permutación correctamente normalizada por tasa (4/15 controles igualan o superan la tasa real, p≈0,27). Negativo en los tres.
+
+**Hipótesis revisada para la próxima sesión:** buscar Morton completo de 63 bits no es realista — NDS.Live usa `PackedTileId` (32 bits, nivel en bits altos) + delta pequeño relativo a `SouthWestCorner()` del tile, no coordenada absoluta. La implementación de referencia para esto también está en `ndslive-math`. Detalle completo: `docs/nds_public_reference.md`.
