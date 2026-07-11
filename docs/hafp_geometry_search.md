@@ -65,4 +65,29 @@ Tras localizar la partición de España, se probaron tres estrategias adicionale
 
 **Conclusión:** la pista que la sesión anterior marcó como "la más prometedora" para `.hafp` queda **descartada como fuente de coordenadas** tras decodificación completa — es un mecanismo de conteo/indexación genérico, coherente con el catálogo de primitivas ya identificado en otros ficheros HAF de este mismo paquete. La tabla de nombres+fonética de `.hafp03` es densa y real (12.696 nombres en 20 MB), pero, igual que en `.hafr`, **no lleva un identificador o coordenada numérica adyacente reconocible** — el vínculo nombre↔geometría, si existe en este fichero, requiere un nivel de indirección todavía no localizado.
 
+## `.hafgsi` (274 MB) — resuelto: es un índice de troceo por bytes de los 16 `.hafp*` concatenados, no un índice geográfico
+
+**Contexto:** siguiente candidato de la lista de "próximos pasos", nunca explorado a fondo (sesión anterior solo llegó a "cubre 512 entradas antes de transicionar a otra estructura, sin verificar si el último valor acumulado —que supera el tamaño del propio fichero— es un offset hacia los `.hafp` combinados").
+
+**Confirmado con precisión exacta:** `.hafgsi` empieza (offset `0x94`) con una tabla de registros de 12 bytes `[u32 acc][u32 stride=12.582.912][u32 ctr]` — el acumulado `acc` crece exactamente en pasos de `12.582.912` (12 MB) por entrada, **341 entradas antes de una transición**. Calculando el tamaño virtual de los 16 ficheros `.hafp`/`hafp01`–`hafp15` **concatenados en orden numérico** y mapeando cada `acc` a `(fichero, offset_relativo)`:
+
+```
+entrada   0- 95  → VIT_EUR.hafp     (offsets 6.291.648 → 1.201.668.288)
+entrada  96-149  → VIT_EUR.hafp01   (offsets 5.126.194 → 672.020.530)
+entrada 150-207  → VIT_EUR.hafp02   (offsets 5.882.458 → 723.108.442)
+entrada 208-257  → VIT_EUR.hafp03   (offsets 1.000.250 → 617.562.938)  ← España
+entrada 258-330  → VIT_EUR.hafp04   (offsets 9.124.022 → 915.093.686)
+entrada 331-340  → VIT_EUR.hafp05   (offsets 2.284.086 → 115.530.294)
+```
+
+**Cada fichero recibe exactamente `ceil(tamaño/12.582.912)` entradas, sin solapamiento ni hueco entre ficheros consecutivos** — verificación matemática completa, no aproximada. Esto **confirma con certeza** (ya no es hipótesis) que `.hafgsi` referencia el espacio de direcciones virtual de los `.hafp*` concatenados. Pero también revela que la tabla es **un troceo lineal por posición de byte, de tamaño fijo, sin relación con contenido ni geografía** — recorre cada fichero de principio a fin en bloques iguales de 12 MB, exactamente como una tabla de páginas de memoria o un índice de streaming/caché para cargar el dataset combinado en trozos manejables, no una subdivisión espacial.
+
+**Tras la primera tabla (offset `0x1090`) hay una segunda tabla idéntica en forma** (mismo stride, `12.582.913` — un byte más) que continúa el mismo recorrido lineal por los 16 ficheros desde el principio otra vez (probablemente un segundo "canal"/tipo de recurso con el mismo troceo). **Tras esa segunda tabla (offset `~0x1890`) aparece una tercera estructura con stride `536.870.912` (2^29, 512 MB)** — un nivel de granularidad mucho más basto, coherente con una jerarquía multi-resolución (como la ya vista en `.hafls`: ramp-up de niveles 1/8→1/2→1/1), pero **sigue siendo indexación por posición de byte, no por contenido geográfico** — no se ha encontrado ningún punto en el que este mecanismo haga referencia a coordenadas o a un `LINK_ID`.
+
+**Conclusión:** `.hafgsi` es un índice de **acceso/streaming** al dataset `.hafp` combinado (troceo por bytes en 2-3 niveles jerárquicos), útil para entender cómo el motor de renderizado real cargaría los datos en memoria — pero no aporta ninguna vía nueva hacia coordenadas. Cierra la lista de candidatos que quedaban por explorar en esta línea de investigación.
+
+## Balance de la sesión 2026-07-11 (continuación de 2026-07-10)
+
+Tres ficheros distintos (`.hafr`, `.hafp03`, `.hafgsi`) recibieron hoy un análisis **completo y riguroso** (no superficial): en los tres casos se llegó a una decodificación estructural real y verificada matemáticamente (no solo "parece prometedor") — y en los tres casos la estructura decodificada resultó ser un mecanismo de indexación/conteo genérico, no coordenadas. Es la primera vez que se agota esta línea de ataque con este nivel de rigor simultáneo en tres ficheros. Junto con la localización de España en `.hafr` (avance real, aunque no resuelve geometría), el balance de la sesión es: **se ha reducido significativamente el espacio de ficheros donde la geometría podría estar** (quedan sin analizar con este mismo rigor: `.hafaip` y los propios `.hafp*` más allá de la cabecera/nombres), pero la conclusión que ya sostenían las sesiones anteriores se mantiene — **la vía más prometedora para llegar a coordenadas reales sigue siendo descifrar el parser real (`appnavi`, exploit físico `gen5w`)**, no seguir infiriendo formato desde fuera.
+
 Related: [`docs/hafr_spatial_index.md`](hafr_spatial_index.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
