@@ -269,3 +269,19 @@ Los 4 offsets dan ratio ≈1,0x tras la corrección — **sin relación con `LIN
 **Implicación práctica:** confirma con evidencia sólida que la arquitectura real es "posición = `LINK_ID` + nombre de calle", resuelta contra el grafo de rutas — no coordenadas GPS embebidas. El siguiente paso natural es comprobar si `linked_records` de `.haftlt` (que hoy se descartó solo contra el subconjunto de `SPEED_PATCH.db`) correlaciona con el espacio real de `LINK_ID` extraído de `.hafr` — pendiente de hacer.
 
 **How to apply (actualiza la nota de cabecera de este fichero):** al retomar esta investigación, ir directamente a `.hafr` y su tabla de Pascal-strings + campo `LINK_ID` candidato — es la pista más sólida con diferencia. `.hafcc` (mencionado en la nota original de 2026-06-30) queda en segundo plano tras confirmarse hoy que su formato de bloque variable no se llegó a parsear con éxito y no ha dado ninguna señal positiva.
+
+---
+
+## Sesión 2026-07-11 — España localizada en `.hafr` por primera vez; geometría sigue sin resolver (negativo con permutación)
+
+**Why:** el usuario pidió retomar la búsqueda de geometría real para intentar un mapa navegable de verdad (calles trazadas), no solo assets visuales (ver [`docs/rendering_visual_assets.md`](../../docs/rendering_visual_assets.md), sesión previa centrada en iconos/texturas).
+
+**Corrección importante:** repitiendo el recorrido de los `m0` de la sesión 2026-07-10 con ventanas de búsqueda correctamente acotadas (`m1×65536` bytes, no una ventana fija que se solapaba entre secciones vecinas), se descubrió que **la rama de `.hafr` ya explorada (offset `0x308`, 6.776 registros raíz) es casi enteramente Portugal** — 169 de 170 registros muestreados por todo el rango dan contenido portugués (`Rua`, `Estrada Nacional`, códigos `IC`/`IP`/`A`/`N`). Esto refuta que esos 6.776 registros sean una subdivisión geográfica limpia de toda Europa como se interpretó el 2026-07-10 (el único soporte de esa hipótesis eran 2 coincidencias con constantes de cabecera, no una tile real por registro).
+
+**🎯 España localizada:** probando los otros nodos "resumen" hermanos (candidatos con `b3=76.320.000` y `m2` real), se encontró que **el byte de tipo de la tabla Pascal-string varía por rama/país** (no es constante `0x25` global como se asumía): `0x27`=Rumanía (códigos `DN`), **`0x2f`=España** (confirmado: `AP-7`, `A-30`, `"Autovía de Murcia"`, `"Avenida de Juan Carlos I"`, topónimos reales de Murcia/Elche/Javalí Nuevo/Torres de Cotillas), `0x34`=Francia (confirmado: `"Rue François Brichet"`, `"Avenue Aristide Briand"`). Nodo raíz: offset `0x12ec` (4.844), `m0=66.781.193`. **Primera vez en 5+ sesiones que se confirma contenido español real dentro de `.hafr`.**
+
+**Geometría: negativo, con prueba de permutación.** Con la rama de España acotada a solo 393.216 bytes, se probaron 4 escalas de coordenadas (`/1e5`, `/1e6`, `/1e7`, y el encoding NDS real `90/2^30`) contra el bounding-box de Murcia. El encoding NDS dio 6 coincidencias aparentemente coherentes geográficamente — pero la prueba de permutación (40 ventanas aleatorias del mismo tamaño en todo el fichero) dio **13/40 controles ≥ 6, p≈0,325, no significativo**. Ruido, no señal — mismo patrón de falso positivo ya catalogado varias veces.
+
+**Conclusión:** avance real (localizar España, nunca logrado antes) pero el bloqueo de fondo persiste — ni siquiera acotando la búsqueda a la región exacta correcta aparece una codificación de coordenadas que sobreviva significancia. Refuerza que la geometría real probablemente vive en `.hafp` (sin resolver, ver [`docs/hafp_geometry_search.md`](../../docs/hafp_geometry_search.md)) o requiere el parser real cifrado (`appnavi`).
+
+Detalle completo: [`docs/hafr_spatial_index.md`](../../docs/hafr_spatial_index.md) sección "España localizada por primera vez".

@@ -180,4 +180,52 @@ Se buscó un segundo tramo de cajas válidas más adelante en el fichero (tras l
 
 **Conclusión:** el tile (o rama del árbol) que cubre España peninsular no se ha localizado en esta sesión. Sin él, no se puede verificar la hipótesis de `m4` como delta de geometría ni avanzar hacia coordenadas reales verificables. Sigue siendo la pista más prometedora de todo el paquete, pero no se ha llegado a coordenadas reales pese al esfuerzo dedicado hoy.
 
+## ⚠️ Corrección importante (sesión 2026-07-11): el árbol de cajas de `0x308` es (casi) enteramente Portugal — refuta la hipótesis de subdivisión geográfica limpia a este nivel
+
+Retomando la investigación con el objetivo de encontrar la geometría real de España, se repitió el recorrido de los `m0` de los registros hermanos `0x350`/`0x374`/`0x398`/`0x3bc` (los mismos 4 usados en la sesión anterior para "verificar" el mecanismo `m0`/`m1`) — pero esta vez **acotando la ventana de búsqueda de nombres al tamaño real de la sección** (`m1×65536` bytes, no una ventana fija de varios MB que se solapa con las secciones vecinas, error metodológico que se cometió y corrigió dentro de esta misma sesión).
+
+**Resultado, con las ventanas correctamente acotadas:**
+
+| Registro | Caja `(b0,b1,b2,b3)`/1e6 | `m0` | Contenido real encontrado |
+|---|---|---|---|
+| `0x350` | `(13.80, 12.84, -15.84, -2.16)` | 458.752 | `"Antiga Estrada Regional 101"`, `"Rua Catarina Eufémia"`, `"Autoestrada do Sul"`, `"Variante de Beja"` — **Portugal** (Beja, Alentejo) |
+| `0x374` | `(13.80, 12.84, -2.16, -0.72)` | 917.504 | Códigos de carretera portugueses: `IC2`, `A25`, `IP2`, `A13-1`, `IP1`, `IC10`... — **Portugal** |
+| `0x398` | `(13.80, 12.84, -0.72, 5.04)` | 1.703.936 | `"Caminho de Santiago-Caminho Português"`, `"Autoestrada do Norte"`, `"Rota do Vale do Douro"` — **Portugal** (norte, valle del Duero) |
+| `0x3bc` | `(13.80, 12.84, 5.04, 7.20)` | 2.228.224 | (vacío en la ventana acotada) |
+
+Las cuatro cajas tienen **distinto rango en los campos b2/b3** (los que se había interpretado como longitud) pero **el mismo contenido nacional** (Portugal) en las tres que sí dieron resultado — el campo que varía entre registros hermanos no está seleccionando un país o región distinta, contradiciendo la premisa de que estas cajas son una partición geográfica limpia por longitud.
+
+**Prueba a mayor escala:** se muestrearon **170 registros repartidos por todo el rango de los 6.776 registros raíz** (cada ~40, cubriendo `m0` desde cientos de miles hasta cientos de millones de bytes) y se buscaron nombres en la ventana acotada de cada uno. **169 de 170 muestras con contenido devuelven exclusivamente patrones de nomenclatura portuguesa** (`Rua`, `Avenida ... de Liberdade`, `Estrada Nacional`, códigos `IC`/`IP`/`A`/`N`) — ninguna española (`Calle`, `Carretera de`), francesa, ni de ningún otro país europeo. La única muestra marcada inicialmente como "candidata a España" (`Avenida ...`) resultó ser también portuguesa al examinar el resto de nombres del mismo registro (`Avenida da Liberdade` es una calle real de Lisboa).
+
+**Conclusión revisada:** el árbol de cajas que empieza en offset `0x308` (los 6.776 registros ya catalogados, con rango de latitud aparente `[0°,33°]` según la sesión anterior) es, con alta probabilidad, **una única rama del árbol dedicada enteramente a Portugal** — no una subdivisión geográfica de toda Europa como se había interpretado. Los campos `b0`-`b3` sí funcionan como claves de partición internas consistentes (permiten navegar sin corromperse, delimitan secciones de tamaño correcto vía `m0`/`m1`), pero **no está demostrado que codifiquen coordenadas WGS84 reales de esa sub-región** — el único soporte para esa hipótesis seguían siendo las dos coincidencias con las constantes de cabecera (`33.000.000` y `76.320.000`), que podrían ser límites genéricos de todo el índice (aplicables por igual a cualquier país) en lugar de una prueba de que cada caja individual es un tile WGS84 ajustado.
+
+**Implicación práctica:** España no se ha encontrado todavía porque **probablemente no está en esta rama del árbol en absoluto** — debe colgar de otro nodo "resumen" de nivel superior (candidatos: los ~16 registros catalogados con `b3=76.320.000` en offsets muy dispersos del fichero, `992` a `195.680`, algunos de los cuales sí tienen `m2` real en vez de centinela, es decir, sí llevan a datos propios) que no se ha explorado todavía. Encontrar la rama correcta requeriría repetir esta misma prueba (caja → nombres reales, con ventana acotada) sobre esos otros nodos candidatos hasta dar con uno cuyo contenido sea español, en vez de seguir asumiendo que la rama ya explorada cubre toda Europa.
+
+## 🎯 España localizada por primera vez en toda la investigación (misma sesión, continuación inmediata)
+
+Siguiendo la implicación práctica de arriba, se probaron los `m0` de los otros 4 nodos "resumen" hermanos identificados con `b3=76.320.000` y `m2` real (no centinela): offsets `992`, `2.180`, `4.844`, `6.788` (m0 = `2.686.977`, `21.889.029`, `66.781.193`, `100.859.917`). El primer intento con el filtro de nombres original (solo `type=0x25`) no dio resultado en ninguno — **el byte de tipo de la tabla Pascal-string varía por rama/país**, no es una constante global como se había asumido implícitamente. Ampliando el filtro a un rango de tipos (`0x20`–`0x50`) y repitiendo la búsqueda:
+
+| `m0` | Tipo Pascal-string | Contenido real encontrado | País |
+|---|---|---|---|
+| `2.686.977` | `0x27` | `DN66`, `DN6`, `DN7`, `DN65B`, `DN1`, `DN1B`... | 🇷🇴 Rumanía (`DN` = *Drum Național*) |
+| `21.889.029` | (ninguno reconocible) | fragmentos no-texto | sin identificar |
+| **`66.781.193`** | **`0x2f`** | **`AP-7`, `A-30`, `RM-1`, `"Autovía del Mediterráneo"`, `"Autovía de Murcia"`, `"Autovía Elche-Aspe"`, `"Avenida de Don Juan de Borbón"`, `"Carretera Javalí Nuevo-Torres de Cotillas"`, `"Avenida de Juan Carlos I"`** | 🇪🇸 **España** (Región de Murcia: Murcia, Elche, Javalí Nuevo, Torres de Cotillas — topónimos reales) |
+| `100.859.917` | `0x34` | `"Rue François Brichet"`, `"Chemin Mariet"`, `"Rue Jean Foyer"`, `"Rond-Point des Français Libres"`, `"Avenue Aristide Briand"` | 🇫🇷 Francia |
+
+**Es la primera vez en 5+ sesiones de investigación que se localiza y confirma contenido español real dentro de `.hafr`.** El registro raíz es el de offset `0x12ec` (decimal `4.844`), caja `(b0,b1,b2,b3)=(17.64, 13.8, 15.12, 76.32)` — los mismos valores num éricos que ya se habían visto sin poder interpretarlos geográficamente; lo que cambia es que ahora se sabe **a qué país llevan**, aunque los números en sí sigan sin decodificar a WGS84 de forma directa (ver corrección de arriba: estas cajas no son tiles geográficos limpios, son claves de partición internas consistentes con el país pero no iguales a sus coordenadas reales).
+
+**Justo antes de la tabla de nombres hay una tabla de registros de 6 bytes** (`[u16 type_code][u32 id_value]`), variante compacta del patrón de 12 bytes ya visto en la rama de Portugal (`[u32][u32][u32]`) — mismo principio (ID/tipo seguido de tabla de nombres), tamaño de registro distinto. Los valores de `id_value` están en el rango de varios millones (~13,7M), coherente con ser `LINK_ID` o similares, no coordenadas.
+
+### Búsqueda de coordenadas dentro de la rama de España — negativo, con prueba de permutación
+
+Con la rama de España acotada a una ventana de solo **393.216 bytes** (en vez de los 965 MB del fichero completo), se hizo una búsqueda dirigida de pares de enteros de 32 bits que decodificaran a coordenadas dentro del bounding-box real de la Región de Murcia (lat `37.0–39.0`, lon `-1.8–-0.3`), probando 4 escalas candidatas: `/1e5`, `/1e6`, `/1e7`, y el **encoding NDS real** (`90/2^30` grados/LSB, de la patente Elektrobit documentada en `.claude/memory/haf_format.md`).
+
+- `/1e5` y `/1e6`: 0 coincidencias.
+- `/1e7`: 25 coincidencias.
+- **NDS (`90/2^30`): 6 coincidencias**, agrupadas de forma sospechosamente coherente alrededor de Murcia real (ej. `38.06°,-1.31°`; `37.97°,-1.38°` — muy cerca de Javalí Nuevo/Torres de Cotillas, los mismos pueblos que aparecen en los nombres de calle encontrados).
+
+**Prueba de permutación (obligatoria antes de creer cualquier conteo, lección ya aprendida varias veces en esta investigación):** se repitió el mismo test de escala NDS sobre 40 ventanas aleatorias del mismo tamaño (393.216 bytes) en posiciones aleatorias de todo el fichero. Resultado: **13 de 40 controles igualan o superan las 6 coincidencias reales** (mediana de controles ≈ 4, máximo 25) — **p ≈ 0,325, no significativo**. La aparente coherencia geográfica de los 6 hits es, con alta probabilidad, coincidencia estadística — el mismo patrón de falso positivo ya catalogado varias veces en esta investigación.
+
+**Conclusión:** localizar la rama correcta de España es un avance real y verificado (nombres de calle reales de Murcia, nunca antes alcanzados), pero **no destraba el problema de fondo** — ni siquiera con la búsqueda acotada a la región exacta y del tamaño correcto aparece una codificación de coordenadas que sobreviva una prueba de significancia. Refuerza la conclusión ya alcanzada repetidamente: la geometría real muy probablemente no vive en `.hafr` en absoluto (que da `LINK_ID`+nombre, confirmado con solidez), sino en `.hafp` (las particiones cartográficas principales) mediante un mecanismo aún no descifrado, o requiere el parser real (`appnavi`, cifrado) para resolverse con certeza.
+
 Related: [`docs/haftlt_build_diff_260128.md`](haftlt_build_diff_260128.md), [`docs/hafls_tile_table.md`](hafls_tile_table.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
