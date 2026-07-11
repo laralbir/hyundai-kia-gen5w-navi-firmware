@@ -1,41 +1,42 @@
-# Topología real de la red de carreteras — renderizado sin coordenadas GPS
+# Adyacencia real vs. "forma de mapa" — por qué el layout por fuerzas engañaba
 
 **Fecha:** 2026-07-11
-**Contexto:** tras varias sesiones intentando decodificar coordenadas GPS/geometría absoluta en `.hafr`, `.hafp` y `.hafgsi` sin éxito (ver [`hafr_spatial_index.md`](hafr_spatial_index.md) y [`hafp_geometry_search.md`](hafp_geometry_search.md)), el usuario planteó una pregunta clave: **¿hace falta la coordenada absoluta, o basta con los valores relativos de nodos/grafo ya confirmados para renderizar algo real?** La respuesta es sí — este documento describe el intento fallido de encontrar geometría nueva en `.hafp`, y el enfoque que sí funcionó: renderizar la **topología** confirmada, no perseguir coordenadas nuevas.
+**Contexto:** tras varias sesiones intentando decodificar coordenadas GPS/geometría absoluta en `.hafr`, `.hafp` y `.hafgsi` sin éxito (ver [`hafr_spatial_index.md`](hafr_spatial_index.md) y [`hafp_geometry_search.md`](hafp_geometry_search.md)), el usuario planteó una pregunta clave: **¿hace falta la coordenada absoluta, o basta con los valores relativos de nodos/grafo ya confirmados para renderizar algo real?** Este documento describe dos intentos con resultado negativo (uno estadístico, otro visual) y la herramienta honesta que quedó al final.
 
-## Intento descartado: geometría tipo malla en `.hafp03`
+## Intento 1, descartado: geometría tipo malla en `.hafp03`
 
-Se buscaron sistemáticamente en `.hafp03` (partición de España, 621 MB) bloques de enteros de 16 bits con la firma estadística de una malla triangulada (arrays de tríos consecutivos que comparten un vértice con el trío siguiente) — patrón típico de un índice de malla 3D o de una polilínea triangulada. Se encontraron dos regiones candidatas que pasaron un filtro estadístico estricto:
+Se buscaron sistemáticamente en `.hafp03` (partición de España, 621 MB) bloques de enteros de 16 bits con la firma estadística de una malla triangulada (arrays de tríos consecutivos que comparten un vértice con el trío siguiente). Se encontraron regiones candidatas que pasaron un filtro estadístico estricto (90% de tríos consecutivos comparten un valor con el trío siguiente — imposible por azar). **Al renderizar estos valores como triángulos conectados, el resultado no era una forma real** — un garabato caótico con fuerte tendencia diagonal, consistente con dos contadores/índices acoplados con ruido, no geometría 2D. Descartado por verificación visual, no solo estadística.
 
-- **90% de los tríos consecutivos comparten un valor con el trío siguiente** — señal estadísticamente muy fuerte, imposible por azar con un rango de ~1.500 valores posibles.
-- Rango de valores acotado y positivo (390–1.952 en la región 1), consistente con coordenadas locales pequeñas o índices.
+## Intento 2, descartado tras un control decisivo: layout por fuerzas sobre la adyacencia confirmada
 
-**Al renderizar estos valores como triángulos conectados, el resultado no es una forma real** — es un garabato caótico con una fuerte tendencia diagonal (x≈y creciendo juntos), consistente con dos contadores/índices que avanzan de forma acoplada con ruido local, no con geometría 2D real. Es la enésima vez en esta investigación que un patrón estadísticamente "limpio" resulta ser una primitiva de serialización genérica (ver catálogo en `.claude/memory/haf_format.md`) en vez de datos geográficos — pero esta vez se verificó **visualmente**, no solo estadísticamente, antes de descartarlo.
+En vez de buscar geometría nueva, se usó lo que **ya estaba confirmado con solidez estadística** desde la sesión 2026-07-10: los campos `f2`/`f3` de `linked_records` (dentro de `.haftlt`) apuntan al índice ±1 del propio registro — adyacencia real y verificada, sin necesidad de coordenadas. Con esa adyacencia se construyó un grafo (`networkx`) y se dibujó con un layout por fuerzas (spring layout). El resultado (curvas, bucles, bifurcaciones suaves) **parecía a primera vista la forma de una red de carreteras real**.
 
-## Lo que sí funcionó: topología confirmada, no geometría nueva
+**El usuario cuestionó esa conclusión — con razón.** Para comprobarlo de forma rigurosa (no solo defenderlo de palabra) se generó un control: cadenas **puramente sintéticas y aleatorias** (`nx.path_graph`, literalmente `0-1-2-3-...-N`, **sin ningún dato real del proyecto**), con un ~15% de aristas extra añadidas al azar para imitar la tasa de "saltos" observada en los datos reales. Dibujadas con el mismo layout:
 
-En vez de seguir buscando geometría sin verificar, se usó lo que **ya está confirmado con solidez estadística** desde la sesión 2026-07-10: los campos `f2`/`f3` de `linked_records` (dentro de `.haftlt`) apuntan al índice ±1 del propio registro — es decir, codifican de forma directa y verificada la **adyacencia real** entre segmentos de carretera (qué segmento conecta con cuál), sin necesidad de coordenadas.
+**Producen exactamente el mismo tipo de garabatos con bucles suaves que los datos reales.**
 
-**Verificación de la hipótesis "índice ±1" a escala completa** (España, 23.528 registros): de los `f2`/`f3` no-centinela, el 84,6% coincide exactamente con `idx-1`/`idx+1`. El 15,4% restante son saltos más grandes — con alta probabilidad, **cruces/bifurcaciones reales** donde la topología se desvía del simple orden secuencial de almacenamiento.
+Conclusión: el layout por fuerzas impone su propia estética (curvas suaves, bucles, ausencia de ángulos rectos) a **cualquier** grafo disperso de tipo cadena, sea la fuente datos reales de carreteras o números consecutivos inventados. La similitud visual con una "red de carreteras" no es evidencia de nada — es un artefacto del algoritmo, no una propiedad de los datos. Se retira por completo la afirmación de la sesión anterior.
 
-Con esta adyacencia se construyó un grafo (`networkx`) y se dibujó con un layout por fuerzas (spring layout) — sin ninguna coordenada de entrada. Resultado:
+## Hallazgo adicional al construir la versión honesta: no hay cruces en `f2`/`f3`
 
-- **4.733 componentes conexos** en España (23.528 registros), el mayor con 199 nodos.
-- Los componentes grandes se dibujan como **curvas, bucles y bifurcaciones topológicamente coherentes** — no como ruido. Los nodos de grado > 2 (cruces reales) aparecen naturalmente en los puntos donde una cadena se ramifica.
-- Cruzando el `LINK_ID` de cada nodo (`f6|f7<<16`, confirmado con permutación p=0.0) contra `SPEED_PATCH.db`, el 8,4% de los nodos de los componentes grandes tienen un límite de velocidad real confirmado — coherente con la cobertura ya documentada (~10%, dado que `SPEED_PATCH.db` solo cubre segmentos con límite especial).
+Al reconstruir la herramienta como tabla de datos (sin layout), se calculó el grado de cada nodo con conjuntos (sin aproximaciones): **el grado máximo de cualquiera de los 23.528 registros de España es exactamente 2.** Es decir, `f2`/`f3` describe **listas enlazadas simples (cadenas)** — cada registro tiene como mucho un "anterior" y un "siguiente", nunca una tercera conexión. No hay ningún cruce/intersección codificado en este par de campos.
 
-## Qué significa esto y qué no
+Esto es coherente con una interpretación más modesta y más probable de lo que representa `f2`/`f3`: punteros de lista enlazada para agrupar registros consecutivos de un mismo tramo/hazard (por ejemplo, varios segmentos cortos con el mismo tipo de aviso a lo largo de una carretera), no la topología completa de la red con sus intersecciones. Las intersecciones reales, si están codificadas en algún sitio, no están en este campo.
 
-**Sí es real:** la forma (curvas, bifurcaciones, bucles) de cada componente refleja la topología verdadera de un tramo de carretera o cluster de carreteras conectadas — es información genuina extraída del formato HERE, no inventada ni interpolada.
+## Lo que queda: una herramienta honesta, sin dibujo de forma alguna
 
-**No es un mapa geográfico:** el layout por fuerzas no tiene norte, escala ni posición real — dos carreteras que en la vida real están a 500 km de distancia pueden aparecer una al lado de la otra en el render. Es un diagrama topológico (como un mapa de metro), no cartográfico.
+[`tools/haftlt_explorer/`](../tools/haftlt_explorer/) — tabla buscable/filtrable/ordenable de los hechos verificados:
 
-**Herramienta:** [`tools/haftlt_graph_viewer/`](../tools/haftlt_graph_viewer/) — genera el HTML con el grafo, coloreado por límite de velocidad real donde hay coincidencia confirmada en `SPEED_PATCH.db`.
+| Dato | Verificación |
+|---|---|
+| Adyacencia (`f2`/`f3`) | 84,6% de los valores no-centinela son exactamente `idx∓1`; grado máximo confirmado = 2 (listas enlazadas simples, sin cruces) |
+| `LINK_ID` (`f6\|f7<<16`) | Confirmado con permutación (p=0.0) contra `SPEED_PATCH.db` |
+| Límite de velocidad real | Coincidencia directa del `LINK_ID` contra `SPEED_PATCH.db` |
 
-## Próximos pasos
+Al hacer click en una fila se muestra el panel de "conexiones directas" (sus 0, 1 o 2 vecinos según `f2`/`f3`) — un hecho verificable de conectividad local, sin ningún dibujo de conjunto ni pretensión de forma geográfica.
 
-1. **Aislar más precisamente los saltos grandes de `f2`/`f3`** (el 15,4% que no es ±1) — son los candidatos más fuertes a cruces reales; cruzarlos contra los nodos de grado > 2 del grafo para confirmar que coinciden.
-2. **Probar con otros países** (el patrón 84,6%/15,4% se verificó solo en España) para confirmar que la proporción de "saltos reales" es consistente.
-3. Si se encuentra alguna forma de anclar aunque sea un componente a una posición real conocida (p. ej. cruzando el patrón de nombres de calle con un cruce de alto grado en una localidad pequeña y conocida), se podría orientar/escalar el resto del grafo por continuidad — no intentado todavía.
+## Lección metodológica
 
-Related: [`hafr_spatial_index.md`](hafr_spatial_index.md), [`hafp_geometry_search.md`](hafp_geometry_search.md), [`tools/haftlt_graph_viewer/README.md`](../tools/haftlt_graph_viewer/README.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
+Es la segunda vez en esta misma sesión (tras el intento de malla en `.hafp03`) que una verificación puramente visual/estética sin control resulta engañosa. La primera vez se corrigió comparando contra ruido evidente (garabato caótico). Esta segunda vez el error fue más sutil — el resultado parecía "razonable" (curvas suaves como una carretera real) precisamente porque el algoritmo de layout está diseñado para producir dibujos estéticamente agradables independientemente del contenido. **La lección aplicable en adelante:** cualquier verificación visual de una hipótesis de datos debe compararse contra un control con datos sintéticos/aleatorios del mismo tipo estructural — el mismo estándar que ya se aplicaba a las pruebas estadísticas (permutación) debe aplicarse también a "esto se ve bien".
+
+Related: [`hafr_spatial_index.md`](hafr_spatial_index.md), [`hafp_geometry_search.md`](hafp_geometry_search.md), [`tools/haftlt_explorer/README.md`](../tools/haftlt_explorer/README.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)
