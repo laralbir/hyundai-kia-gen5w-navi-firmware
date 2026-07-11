@@ -1,7 +1,7 @@
 - [Project Context](project_context.md) — Plataforma mango/S5W, cifrado AES confirmado, único archivo accesible sin descifrado: mango-vr_fixed
 - [User Role](user_role.md) — Ingeniería inversa de firmware embebido automotriz (Kia Rio 2022 EU head unit)
 - [File Details](file_details.md) — Tamaños, magic bytes y estado de accesibilidad de todos los archivos del paquete (~22.5 GB total)
-- [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets
+- [HAF Format](haf_format.md) — HERE Automotive Format: extensiones (.hafp/.hafr/.hafaip/…), SPEED_PATCH.db schema SQLite (10.3M registros), radares, ADAS, UI assets; 🎯 imágenes reales de mapa extraídas (.skn, Rendering_LATTE/MILK/MOCHA WebP) + pixel format del atlas de texturas resuelto (enums OpenGL) + ASTC confirmado/descartado por fichero
 - [VR Engine](vr_engine.md) — Motor LPTE TTS v1.5.1 (Cerence), 24 idiomas EU / 1 AU (coreano), estructura interna de mango-vr_fixed.tar.gz
 - [RE Findings](re_findings.md) — Cifrado AES confirmado, magic bytes por archivo, firmware MCU frontkey identificado como Renesas RL78 (no ARM Cortex-M), estrategia de RE recomendada
 - [Frontkey MKBD Analysis](frontkey_mkbd_analysis.md) — Ghidra + módulo RL78 de terceros; lógica de validación de matriz de botones decompilada; NX4 vs US4 son binarios genuinamente distintos, no misma lógica con datos distintos

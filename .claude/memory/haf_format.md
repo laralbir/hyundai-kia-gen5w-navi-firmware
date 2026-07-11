@@ -129,6 +129,17 @@ Alimenta: **SCC** (crucero predictivo de pendientes), **LKAS** (asistencia de ca
 - **Junction Exit View**: fotos reales de salidas de autopista (funcionalidad premium HERE)
 - **Señales de velocidad**: `GlobalImage/SpeedLimit/speed_limit_0-9.png` + `_red_` (dígitos compuestos en pantalla)
 
+### 🎯 Visualización de mapas — primeras imágenes reales extraídas (sesión 2026-07-10/11)
+
+Ver detalle completo en [`docs/rendering_visual_assets.md`](../../docs/rendering_visual_assets.md). Resumen:
+
+- **`.skn`** (magic `REDSKIN#`): manifiesto de tema — referencia 3 recursos externos vía texto UTF-16LE (`VIT_EUR_CE_THEME_IMAGE.bin` atlas de texturas, `model_sym.bin`/`model_bld.bin` modelos 3D) + tabla de **807 registros de estilo** de 32 bytes (sentinelas `0xCCCC`/`0xCC00`, ID secuencial, campo `REF` no-secuencial candidato a índice de color/textura). Los 5 temas comparten tamaño exacto (121.492 B) → misma tabla de IDs, distinto `REF` por tema.
+- **`VIT_EUR_CE_THEME_IMAGE.bin`** (84,5 MB) 🎯 **pixel format resuelto**: índice de 64 B/registro (`seq`, `size`, `data_offset` absoluto, verificado con `offset[i]+size[i]==offset[i+1]`); cada textura lleva cabecera de 32 B con **enums reales de OpenGL** (`channels=3→GL_RGB=6407`, `channels=4→GL_RGBA=6408`) + `width`/`height`/`mip_levels` (cadena de mipmaps completa hasta 1×1) + píxeles sin comprimir. Verificado renderizando 5 texturas reales (512×512 gradiente de cielo verde, 128×128 panel UI, etc.) — ya no es hipótesis.
+- **`VIT_EUR_Rendering_{LATTE,MILK,MOCHA}.hafmma`** 🎯 — **hallazgo principal**: cabecera HAF + tabla de 204 offsets → **136 imágenes WebP reales**, extraídas y decodificadas con éxito (Pillow/`dwebp`). Son ilustraciones esquemáticas 3D de bifurcación/salida de autopista (panel de "próxima maniobra"), dominante 640×720 px, con variantes con canal alfa para overlay de resalte de carril. Confirma que LATTE/MILK/MOCHA son la misma escena en 3 luminosidades (día/claro/noche). **Primera vez en 5+ sesiones que se extrae contenido visual real y con significado del paquete de mapas.**
+- **`VIT_EUR_SYMBOL_48.hafmma`** (19,5 MB): mismo esqueleto contenedor, pero el payload NO es WebP/PNG. **ASTC descartado con evidencia directa** (0 coincidencias del magic `13 AB A1 5C` en todo el fichero) — es RGBA sin comprimir organizado por categoría con nombre legible (`"LAND\COMMON"`), con secuencias de color plano repetido típicas de iconos de POI.
+- **`VIT_EUR_3D_LANDMARK_ASTC.hafmma`** (379 MB) 🎯 **ASTC confirmado**: magic ASTC estándar (`13 AB A1 5C`) 342 veces solo en los primeros 2 MB muestreados, bloque 10×10, cadena de mipmaps completa 256×256→...→2×2. Formato identificado con certeza estructural; falta decodificador (no disponible vía Homebrew, requeriría compilar `ARM-software/astc-encoder`) para ver el contenido de píxeles.
+- **`GlobalImage/**/*.png`**: PNG estándar ya directamente visualizables sin RE (banderas, popups, peajes, viñetas, dígitos de velocidad).
+
 ## Catálogo de primitivas genéricas de serialización (sesión 2026-07-09)
 
 Tras analizar en profundidad `.haftlt` (`linked_records`) y `.hafls` (tabla dispersa en offset `0x108`), aparecen **los mismos 3-4 patrones de bajo nivel una y otra vez, en ficheros y offsets totalmente distintos.** Es casi seguro que son primitivas genéricas de la toolchain de serialización de HERE (estructuras de datos reutilizables), no formato específico de cámaras/radares. Catalogarlas aquí para no re-descubrirlas creyendo cada vez que son un hallazgo nuevo:
