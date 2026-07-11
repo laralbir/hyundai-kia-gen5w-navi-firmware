@@ -46,9 +46,23 @@ Tras localizar la partición de España, se probaron tres estrategias adicionale
 
 ## Próximos pasos
 
-1. **Decodificar el patrón de cabecera regular** (`1.667.235.840` + contador + `-16,7772°` + centinela + hash) — parece la pista más prometedora, análoga al índice de tiles de `.hafr`.
+1. ~~Decodificar el patrón de cabecera regular~~ → **hecho, sesión 2026-07-11 — descartado como fuente de coordenadas** (ver abajo).
 2. **Buscar la tripleta de `LINK_ID` en otra posición** respecto al nombre de calle (no necesariamente inmediatamente antes) — puede que en `.hafp` la relación nombre↔geometría pase por un nivel de indirección adicional (índice separado, no adyacencia directa).
 3. **Verificar si el dato fonético (`'ka.Je&I_'s@n_'hwAn`) tiene su propia tabla separada** de la de coordenadas — de ser así, buscar la tabla de geometría en otra región del fichero.
 4. Alternativa más eficiente: en vez de seguir con `.hafp` a ciegas, considerar si `.hafgsi` (Global Spatial Index, 274 MB, cabecera ya examinada con un patrón de tiles de stride `12.582.912` = 4×3MB) es un mejor punto de entrada — parece un índice más limpio y ya muestra estructura regular en sus primeros bytes.
+
+## Sesión 2026-07-11 — patrón de cabecera regular decodificado y descartado como coordenadas; confirmado el mismo byte de tipo `0x2f`=España que en `.hafr`
+
+**Contexto:** tras localizar por primera vez la rama de España en `.hafr` (ver [`docs/hafr_spatial_index.md`](hafr_spatial_index.md)) usando la técnica de "el byte de tipo Pascal-string varía por país/idioma" (`0x2f`=España confirmado allí también), se retomó `.hafp03` con la misma lente.
+
+**Confirmación cruzada del byte de tipo:** el Pascal-string de `"Calle de la Caracola"` (offset `209.098`) usa exactamente `type=0x2f` — el mismo valor confirmado hoy para España en `.hafr`. Es un dato de consistencia real entre dos ficheros de la familia HAF completamente distintos, refuerza que `0x2f` es un código de idioma/país estable en todo el ecosistema, no una coincidencia de una sesión.
+
+**Nuevo dato: cada nombre va seguido inmediatamente de su transcripción fonética con `type=0xaf`** (`0x2f | 0x80`) — el bit alto parece ser un modificador "variante fonética" del mismo tipo base, no un tipo independiente. Confirmado en 10+ pares nombre/fonética consecutivos (`"Calle San Juan"` → `'ka.Je_'san_'xwan`, etc.). **12.696 nombres reales de tipo `0x2f` localizados en los primeros 20 MB de `hafp03`** — incluye topónimos de El Hierro (Canarias): `"Carretera de la Restinga"`, `"Ruta de Los Acantilados de El Hierro"`.
+
+**El patrón de cabecera regular, decodificado — es un contador de dos series entrelazadas, no coordenadas:** el registro de 72 bytes que empieza con la constante `1.667.235.840` tiene 18 campos `u32`. Los campos 1 y 2 (el segundo de los cuales se había interpretado como la "longitud plausible −16,7772°") **no son un valor casi-constante con una lectura geográfica real** — son dos contadores que **alternan entre dos series intercaladas** (`12.583.944 / 12.583.945 / 12.583.945 / 12.583.944 / ...`, patrón `A,B,B,A` repetido, no monótono) — el resto de los 18 campos por registro también se agrupan en dos patrones que se repiten exactamente entre registros alternos. Es una estructura de **dos tablas entrelazadas** (posiblemente un centinela + su índice de continuación, el mismo tipo de primitiva ya catalogada en `.hafls`/`.haftlt`), no una tabla de coordenadas — el parecido con `-16,7772°` de la sesión anterior era, con alta probabilidad, coincidencia de un solo valor de muestra.
+
+**Prueba sistemática y rigurosa (con controles), no solo lectura visual:** se extrajeron los 18 campos de **5.633 registros de 72 bytes** (primeros 20 MB de `hafp03`) y se probaron **las 306 combinaciones posibles de pares de campos** (`i≠j` de 18×18) contra el bounding-box real de El Hierro (lat 27,5–27,9°, lon −18,2 a −17,8°) en **4 escalas candidatas** (`/1e5`, `/1e6`, `/1e7`, NDS `90/2^30`) — **0 combinaciones con más de 5 coincidencias** en ninguna escala. Negativo limpio, sin necesidad siquiera de prueba de permutación (la señal ni siquiera supera el umbral mínimo para justificarla).
+
+**Conclusión:** la pista que la sesión anterior marcó como "la más prometedora" para `.hafp` queda **descartada como fuente de coordenadas** tras decodificación completa — es un mecanismo de conteo/indexación genérico, coherente con el catálogo de primitivas ya identificado en otros ficheros HAF de este mismo paquete. La tabla de nombres+fonética de `.hafp03` es densa y real (12.696 nombres en 20 MB), pero, igual que en `.hafr`, **no lleva un identificador o coordenada numérica adyacente reconocible** — el vínculo nombre↔geometría, si existe en este fichero, requiere un nivel de indirección todavía no localizado.
 
 Related: [`docs/hafr_spatial_index.md`](hafr_spatial_index.md), [`.claude/memory/haf_format.md`](../.claude/memory/haf_format.md)

@@ -285,3 +285,11 @@ Los 4 offsets dan ratio ≈1,0x tras la corrección — **sin relación con `LIN
 **Conclusión:** avance real (localizar España, nunca logrado antes) pero el bloqueo de fondo persiste — ni siquiera acotando la búsqueda a la región exacta correcta aparece una codificación de coordenadas que sobreviva significancia. Refuerza que la geometría real probablemente vive en `.hafp` (sin resolver, ver [`docs/hafp_geometry_search.md`](../../docs/hafp_geometry_search.md)) o requiere el parser real cifrado (`appnavi`).
 
 Detalle completo: [`docs/hafr_spatial_index.md`](../../docs/hafr_spatial_index.md) sección "España localizada por primera vez".
+
+### Continuación misma sesión — `.hafp03` (partición España), pista de cabecera decodificada y descartada
+
+Aplicando la misma técnica (byte de tipo Pascal-string por país) a `.hafp03`: confirma `type=0x2f` para nombres españoles (consistente con `.hafr` — mismo código en dos ficheros HAF distintos) y descubre `type=0xaf` (`0x2f|0x80`) para la transcripción fonética que sigue a cada nombre. 12.696 nombres reales localizados en 20 MB (incluye El Hierro/Canarias).
+
+La pista más prometedora que había dejado la sesión de `.hafp` (patrón de cabecera regular con "longitud plausible −16,7772°") se decodificó por completo: son **dos contadores entrelazados** (patrón `A,B,B,A`, no monótono) — la coincidencia con una longitud real era casualidad de un único valor de muestra, no un patrón geográfico. Prueba sistemática (306 combinaciones de campos × 4 escalas, 5.633 registros) contra El Hierro real: **0 combinaciones con señal**. Descartada.
+
+**Estado tras esta sesión:** tanto `.hafr` como `.hafp03` dan nombre+fonética/tipo con byte de país consistente (`0x2f`=España en ambos), pero **ninguno de los dos da coordenadas** pese a búsquedas sistemáticas con prueba de significancia. El bloqueo de "encontrar geometría por inspección externa" se mantiene tras esta sesión — siguiente candidato más prometedor sin probar: `.hafgsi` (274 MB, índice espacial global, cabecera con patrón de tiles ya visto pero sin seguir hasta datos útiles).
