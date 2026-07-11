@@ -1,0 +1,9 @@
+vmlinuz
+initrd.img
+work/
+screenshot.png
+screenshot.ppm
+boot_console.log
+qmp_boot.sock
+test_rootfs/
+test_rootfs.tar
