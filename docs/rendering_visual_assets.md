@@ -11,7 +11,7 @@
 | `RES/SKIN/VIT_EUR_CE_THEME_IMAGE.bin` (84,5 MB) | Propio, índice de 64 bytes/registro | 🎯 Atlas de texturas RGB/RGBA sin comprimir, **pixel format resuelto y verificado por render** |
 | `MAP/VIT_EUR_Rendering_{LATTE,MILK,MOCHA}.hafmma` (~780 KB c/u) | HAF + tabla de offsets + **WebP embebido** | 136 imágenes reales de guiado de salida/carril (ilustraciones esquemáticas 3D), 3 paletas de color |
 | `MAP/VIT_EUR_SYMBOL_48.hafmma` (19,5 MB) | HAF + tabla de offsets, contenido NO es WebP/PNG | Iconos de POI/símbolos de mapa — **confirmado que NO es ASTC** (0 coincidencias de magic); RGBA sin comprimir organizado por categoría con nombre (ej. `LAND\COMMON`) |
-| `MAP/VIT_EUR_3D_LANDMARK_ASTC.hafmma` (379 MB) | HAF + tabla de offsets + **ASTC embebido** | 🎯 **Confirmado formato ASTC estándar** (magic `13 AB A1 5C`, bloque 10×10, cadena de mipmaps completa 256→1) — 342 texturas ASTC solo en los primeros 2 MB muestreados |
+| `MAP/VIT_EUR_3D_LANDMARK_ASTC.hafmma` (379 MB) | HAF + tabla de offsets + **ASTC embebido** | 🎯🎯 **ASTC confirmado y decodificado**: texturas reales de fachadas de edificios para landmarks 3D (ventanas, columnas, tejados) |
 | `GlobalImage/**/*.png` | PNG estándar | Iconos de UI ya directamente visualizables sin ingeniería inversa (banderas, popups, límites de velocidad, peajes, viñetas) |
 
 ## 1. `.skn` — formato de tema/skin
@@ -91,19 +91,23 @@ Esta es la **primera vez en toda la investigación** (5+ sesiones) que se extrae
 
 Mismo esqueleto de contenedor (cabecera HAF + tabla de offsets a partir de `0x100`), pero **el contenido de los registros no es WebP ni PNG** — no se encontró ningún magic `RIFF`/`\x89PNG` en todo el fichero. Cabecera: campo en `0x74`=21, `0x88`=255 (posibles sub-conteos), tabla de offsets con deltas grandes (~1,2 MB) al principio y luego mucho más pequeños (~10 KB) — sugiere una tabla jerárquica de dos niveles (grupos de iconos → iconos individuales), análoga a la de `.hafls` ya documentada.
 
-**❌ Hipótesis ASTC descartada, con evidencia directa**: cero coincidencias del magic ASTC estándar (`13 AB A1 5C`) en todo el fichero — a diferencia de `VIT_EUR_3D_LANDMARK_ASTC.hafmma` (ver más abajo), donde el mismo magic aparece 342 veces solo en los primeros 2 MB. En su lugar, el primer bloque de datos (offset `0x154`) contiene una **cadena de texto legible**: `"LAND\COMMON"` — un nombre de categoría/carpeta de iconos — seguida de una tabla de sub-entradas con pares de dimensiones pequeñas (del orden de 30-70 px, típico de iconos de POI) y, más adelante en el fichero, **secuencias largas de valores RGBA de 4 bytes idénticos repetidos** (ej. `80 80 80 ff` gris, `11 27 65 ff` azul, `0a 87 2d ff` verde) — la firma inconfundible de **rellenos de color plano sin comprimir**, coherente con iconos/marcadores de POI de color sólido. **Conclusión: es un atlas RGBA sin comprimir organizado por categoría con nombre, no ASTC** — mismo principio que `VIT_EUR_CE_THEME_IMAGE.bin` pero con un esquema de índice por categoría en vez del índice plano de 64 bytes/textura.
+**❌ Hipótesis ASTC descartada, con evidencia directa**: cero coincidencias del magic ASTC estándar (`13 AB A1 5C`) en todo el fichero — a diferencia de `VIT_EUR_3D_LANDMARK_ASTC.hafmma` (ver más abajo), donde el mismo magic aparece 342 veces solo en los primeros 2 MB. En su lugar, el primer bloque de datos (offset `0x154`) contiene una **cadena de texto legible**: `"LAND\COMMON"` — un nombre de categoría/carpeta de iconos — seguida de una tabla de sub-entradas con pares de dimensiones pequeñas (del orden de 30-70 px, típico de iconos de POI) y, más adelante en el fichero, **secuencias largas de valores RGBA de 4 bytes idénticos repetidos** (ej. `80 80 80 ff` gris, `11 27 65 ff` azul, `0a 87 2d ff` verde, con transiciones a blanco/transparente en los bordes) — la firma inconfundible de **rellenos de color plano sin comprimir con antialiasing**, coherente con iconos/marcadores de POI de color sólido. **Conclusión: es un atlas RGBA sin comprimir organizado por categoría con nombre, no ASTC** — mismo principio que `VIT_EUR_CE_THEME_IMAGE.bin`, pero con un esquema de índice por categoría en vez del índice plano de 64 bytes/textura.
 
-## 4b. `VIT_EUR_3D_LANDMARK_ASTC.hafmma` (379 MB) — ASTC confirmado 🎯
+**Intento de reconstrucción raster — sin resolver.** Se intentó reconstruir el icono como imagen 2D asumiendo ancho fijo (probando 48 px, sugerido por el propio nombre del fichero, y un barrido sistemático de 192 offsets candidatos alrededor del run de color verde) — **ningún offset probado produjo una imagen coherente** (todos dan bandas horizontales, señal de desalineación de stride). La longitud real del run de color sólido encontrado (94 repeticiones de 4 bytes) tampoco es múltiplo limpio de 48. Los campos de la tabla de sub-entradas cercana a `"LAND\COMMON"` (valores tipo `114/40/38`, `140/41/35`) se probaron como candidatos a `(stride, width, height)` sin que ninguna combinación encajara de forma consistente entre entradas. **Queda como pendiente genuino** — la existencia de datos RGBA reales está confirmada, pero no el ancho/stride exacto por icono.
 
-Muestreadas los primeros 2 MB (lectura parcial de la entrada ZIP, sin extraer los 379 MB completos). Cabecera HAF estándar (`DATA_VERSION_2025.06.11.15`), campo `0x74`=7.524 (probable nº de landmarks/texturas).
+## 4b. `VIT_EUR_3D_LANDMARK_ASTC.hafmma` (379 MB) — ASTC confirmado y decodificado 🎯🎯
 
-**Confirmado sin ambigüedad**: el magic estándar de fichero ASTC de un solo nivel, `13 AB A1 5C` (little-endian de `0x5CA1AB13`, el magic real de la especificación Khronos ASTC), aparece **342 veces en los primeros 2 MB**. Decodificando la cabecera ASTC completa (magic + block_x + block_y + block_z + xsize[3] + ysize[3] + zsize[3], 16 bytes) de las primeras 8 ocurrencias:
+Muestreados los primeros 2–10 MB (lectura parcial de la entrada ZIP, sin extraer los 379 MB completos). Cabecera HAF estándar (`DATA_VERSION_2025.06.11.15`), campo `0x74`=7.524 (probable nº de landmarks/texturas).
+
+**Confirmado sin ambigüedad**: el magic estándar de fichero ASTC de un solo nivel, `13 AB A1 5C` (little-endian de `0x5CA1AB13`, el magic real de la especificación Khronos ASTC), aparece **342 veces en los primeros 2 MB** (1.451 en los primeros 10 MB). Decodificando la cabecera ASTC completa (magic + block_x + block_y + block_z + xsize[3] + ysize[3] + zsize[3], 16 bytes) de las primeras 8 ocurrencias:
 
 ```
 block 10×10×1, tamaños: 256×256 → 128×128 → 64×64 → 32×32 → 16×16 → 8×8 → 4×4 → 2×2 (→ 1×1 implícito)
 ```
 
-Cadena de mipmaps completa, formato de bloque 10×10 (uno de los modos de compresión ASTC de tasa de bits más baja, ~1,2 bpp) — es el formato usado para los **modelos/texturas de landmarks 3D** (edificios emblemáticos renderizados en 3D en el mapa). No se instaló un decodificador ASTC en esta sesión (no disponible vía Homebrew: `astcenc` no tiene fórmula; requeriría compilar `ARM-software/astc-encoder` desde fuente) — el formato queda **identificado con certeza estructural total**, pendiente solo la decodificación visual del contenido de píxeles.
+Cadena de mipmaps completa, formato de bloque 10×10 (uno de los modos de compresión ASTC de tasa de bits más baja, ~1,2 bpp).
+
+**🎯 Decodificado con éxito**: se compiló `ARM-software/astc-encoder` desde fuente (no disponible vía Homebrew; requirió instalar `cmake` y compilar con soporte NEON) y se decodificaron varias texturas base de 256×256 con `astcenc -dl`. **El contenido son texturas reales de fachadas de edificios** — ventanas en fila, columnas clásicas, molduras, tejados y puertas, en el estilo de mapeado UV típico de un atlas de fachada para un modelo 3D de landmark (edificio emblemático renderizado en 3D en el mapa, p. ej. un palacio o edificio institucional europeo con planta de patio visible en una de las texturas). Confirma con total certeza que `.hafmma` con sufijo `_ASTC` contiene las **texturas reales aplicadas a los modelos 3D de landmarks** del mapa — el primer contenido 3D/arquitectónico real visualizado de toda la investigación.
 
 ## 5. `GlobalImage/**/*.png` — ya directamente accesibles
 
@@ -115,14 +119,15 @@ No requieren ingeniería inversa: son PNG estándar, extraíbles directamente de
 ## Próximos pasos
 
 ~~1. Resolver el pixel format exacto de `VIT_EUR_CE_THEME_IMAGE.bin`~~ → **resuelto**: índice de 64 B + cabecera de textura de 32 B con enums reales de OpenGL (`GL_RGB`/`GL_RGBA`), verificado renderizando 5 texturas reales.
-~~2. Confirmar si `VIT_EUR_SYMBOL_48.hafmma` es ASTC~~ → **resuelto, descartado**: 0 coincidencias de magic ASTC; es RGBA sin comprimir organizado por categoría con nombre (`LAND\COMMON`). `VIT_EUR_3D_LANDMARK_ASTC.hafmma` sí es ASTC real, confirmado por magic + cabecera de bloque válida (342 instancias en 2 MB muestreados).
+~~2. Confirmar si `VIT_EUR_SYMBOL_48.hafmma` es ASTC~~ → **resuelto, descartado**: 0 coincidencias de magic ASTC; es RGBA sin comprimir organizado por categoría con nombre (`LAND\COMMON`), pero el stride/ancho por icono no se logró aislar (ver intento fallido en la sección 4).
+~~3. Instalar/compilar un decodificador ASTC~~ → **resuelto**: `ARM-software/astc-encoder` compilado desde fuente y usado con éxito para decodificar texturas reales de `VIT_EUR_3D_LANDMARK_ASTC.hafmma` (fachadas de edificios landmark).
 
 **Lo que sigue abierto:**
 
-1. **Cruzar el campo `REF` de la tabla de estilos de `.skn`** contra el campo `seq`/`type` del índice de `VIT_EUR_CE_THEME_IMAGE.bin` — si coinciden en rango/distribución, confirmaría el enlace estilo→textura.
-2. **Decodificar la segunda sección de `.skn`** (tras offset `0x68c0`, ~94 KB, mismo sentinela `0xCCCC` pero layout distinto) — no abordado en esta sesión.
-3. **Decodificar el índice jerárquico de `VIT_EUR_SYMBOL_48.hafmma`** (grupos de categoría tipo `LAND\COMMON` → iconos individuales con dimensión propia) para extraer y renderizar iconos de POI individuales, ahora que se confirmó que son RGBA sin comprimir.
-4. **Instalar/compilar un decodificador ASTC** (`ARM-software/astc-encoder`, no disponible vía Homebrew) para renderizar visualmente las texturas de `VIT_EUR_3D_LANDMARK_ASTC.hafmma`, ya identificadas con certeza estructural.
+1. **Aislar el stride/ancho exacto por icono en `VIT_EUR_SYMBOL_48.hafmma`** — confirmado que hay datos RGBA reales (colores planos con antialiasing en los bordes), pero el barrido de offsets candidatos con ancho fijo (incl. 48 px, sugerido por el nombre del fichero) no produjo ninguna imagen coherente. Probablemente el ancho varía por icono (codificado en la tabla de sub-entradas junto al nombre de categoría) en vez de ser fijo — pendiente de decodificar esa tabla con precisión antes de reintentar el raster.
+2. **Cruzar el campo `REF` de la tabla de estilos de `.skn`** contra el campo `seq`/`type` del índice de `VIT_EUR_CE_THEME_IMAGE.bin` — si coinciden en rango/distribución, confirmaría el enlace estilo→textura.
+3. **Decodificar la segunda sección de `.skn`** (tras offset `0x68c0`, ~94 KB, mismo sentinela `0xCCCC` pero layout distinto) — no abordado en esta sesión.
+4. **Decodificar más texturas de `VIT_EUR_3D_LANDMARK_ASTC.hafmma`** a escala (las 7.524 declaradas en cabecera) y, si se aísla el índice landmark→texturas, cruzarlas con nombres de edificio conocidos.
 5. Extraer y decodificar `VIT_EUR_3D_MODEL_SYM.hafmma` / `VIT_EUR_3D_MODEL_SYM_CCIC.hafmma` (modelos 3D referenciados desde `.skn` como `model_sym.bin`/`model_bld.bin`) — el índice de offsets de estos ficheros **no sigue el mismo esquema monótono** que los ficheros de imagen (probado y descartado en esta sesión); es un formato de malla 3D (vértices/UV/índices) genuinamente distinto, sin explorar todavía.
 
 ## Nota sobre datos extraídos
