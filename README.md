@@ -59,10 +59,13 @@ Este dispositivo es compartido por múltiples modelos de Hyundai y Kia (p.ej. Ki
     ├── haftlt_parser/                  Desempaquetado estructurado del .haftlt (CSV/JSON)
     │   ├── README.md                   Uso y aviso sobre *_diverging.bin (no son "bytes nuevos")
     │   └── parse_haftlt.py            Vuelca índice + Secciones 1-4 a CSV; --other localiza zonas candidatas
-    └── camera_editor/                  🎯 App nativa macOS (SwiftUI) — editor de LINK_ID + límites de velocidad
-        ├── README.md                   Uso, qué NO hace (no escribe el .haftlt), y aviso sobre búsqueda por calle
-        ├── Package.swift               Manifiesto Swift Package Manager (macOS 14+)
-        └── Sources/CameraEditor/       Parser .haftlt + SQLite (SPEED_PATCH.db) + interfaz SwiftUI
+    ├── camera_editor/                  🎯 App nativa macOS (SwiftUI) — editor de LINK_ID + límites de velocidad
+    │   ├── README.md                   Uso, qué NO hace (no escribe el .haftlt), y aviso sobre búsqueda por calle
+    │   ├── Package.swift               Manifiesto Swift Package Manager (macOS 14+)
+    │   └── Sources/CameraEditor/       Parser .haftlt + SQLite (SPEED_PATCH.db) + interfaz SwiftUI
+    └── map_render_viewer/              🎯 Galería HTML de assets visuales del mapa: guiado WebP, atlas RGB/RGBA y landmarks ASTC
+        ├── README.md                   Uso, requisitos (Pillow + astc-encoder compilado), y aviso: la salida NO se commitea
+        └── generate_viewer.py         Trabaja directo sobre el ZIP; decodifica los 3 formatos resueltos en rendering_visual_assets.md
 ```
 
 > Los ficheros binarios de gran tamaño (imágenes de firmware, mapas, paquetes VR) están excluidos mediante `.gitignore`.

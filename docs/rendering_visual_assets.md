@@ -130,6 +130,10 @@ No requieren ingeniería inversa: son PNG estándar, extraíbles directamente de
 4. **Decodificar más texturas de `VIT_EUR_3D_LANDMARK_ASTC.hafmma`** a escala (las 7.524 declaradas en cabecera) y, si se aísla el índice landmark→texturas, cruzarlas con nombres de edificio conocidos.
 5. Extraer y decodificar `VIT_EUR_3D_MODEL_SYM.hafmma` / `VIT_EUR_3D_MODEL_SYM_CCIC.hafmma` (modelos 3D referenciados desde `.skn` como `model_sym.bin`/`model_bld.bin`) — el índice de offsets de estos ficheros **no sigue el mismo esquema monótono** que los ficheros de imagen (probado y descartado en esta sesión); es un formato de malla 3D (vértices/UV/índices) genuinamente distinto, sin explorar todavía.
 
+## Herramienta de visualización
+
+[`tools/map_render_viewer/`](../tools/map_render_viewer/) genera una galería HTML autocontenida con los tres formatos resueltos arriba (guiado WebP, atlas RGB/RGBA, landmarks ASTC), trabajando directamente sobre el ZIP de mapas. Verificado contra el ZIP real: 500 imágenes embebidas (80 del atlas + 408 de guiado + 12 de landmarks) con los valores por defecto. El HTML generado no se commitea (ver aviso en el README de la herramienta).
+
 ## Nota sobre datos extraídos
 
 Las imágenes WebP/PNG extraídas en esta sesión (136 por tema × 3 temas, más las de `GlobalImage`) son propiedad de HERE/Kia y **no se han incluido en este repositorio** — el trabajo de extracción se hizo en un directorio temporal fuera del árbol del proyecto. Este documento describe la estructura y el contenido observado, no adjunta las imágenes en sí.
