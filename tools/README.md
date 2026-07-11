@@ -59,6 +59,32 @@ Antes de empezar, puntos críticos confirmados por RE:
 
 ---
 
+## ✅ Checklist del día D (actualizado 2026-07-11)
+
+Estado real de cada pieza, verificado en esta sesión (sin acceso físico al HU todavía):
+
+| Pieza | Estado | Nota |
+|---|---|---|
+| Repos gen5w clonados | ✅ Listo (`./setup.sh`) | |
+| `navi_extended` compila (ELF x86-64 real) | ✅ Verificado hoy | `dotnet publish -r linux-x64` — sin errores |
+| `main_loop_code.sh` (dispatcher) | ✅ Corregido hoy | La plantilla upstream no llamaba a `extract_keys.sh` — bug real, ya arreglado en `prepare_usb.sh` |
+| `prepare_usb.sh` produce una estructura de USB completa y coherente | ✅ Probado end-to-end hoy | Contra un directorio local (no un USB real todavía) |
+| Pipeline Docker (Fases 3-4: descifrado + parcheo) | ✅ Validado con dry-run sintético | Ver sección "Validación práctica del pipeline" en [`docs/gen5w_exploit_ecosystem.md`](../docs/gen5w_exploit_ecosystem.md) |
+| **Punto de entrada — cómo instalar `navi_extended` en el HU la primera vez** | ❌ **Sin confirmar — es el bloqueante real** | Requiere Engineering Mode, bloqueado por `checkSOPVersion()` en nuestro firmware `MASS_PRODUCT`. Ver checklist de abajo. |
+
+### Antes de tocar el vehículo
+
+1. **Probar el acceso al PIN de Engineering Mode primero, es gratis** — Método A o B de [`docs/engineering_mode.md`](../docs/engineering_mode.md), PIN `21`. Si por algún motivo funciona (excepción de firmware, variante no documentada), todo lo demás de este plan se ejecuta sin más obstáculos.
+2. Si el PIN no funciona (lo más probable, dado el análisis QML): decidir cuál de las 3 rutas alternativas intentar (downgrade vía `update_fetcher`, UART, GDS) — ver la tabla de coste/riesgo en [`phase1_usb/README.md`](phase1_usb/README.md#%EF%B8%8F-el-verdadero-bloqueante-el-punto-de-entrada-inicial-actualizado-2026-07-11).
+3. Preparar el USB con `./phase1_usb/prepare_usb.sh` (exFAT, ≥32 GB) — hazlo aunque el punto de entrada siga sin resolver, no cuesta nada tenerlo listo.
+4. Releer `phase1_usb/README.md` completo una vez más justo antes de conectar el USB al HU real — es la única parte de todo el plan que actúa sobre hardware irreversible (o al menos no trivialmente reversible).
+
+### El día que se consiga acceso físico
+
+Seguir las fases en orden (1 → 5) tal como están documentadas abajo. Cada fase tiene su propio README con más detalle. Guardar `decryption_key.der`/`*_key_*.der` y `DecryptToPIPE` original **inmediatamente** en cuanto aparezcan en el USB — son irrecuperables si se pierden.
+
+---
+
 ## Fase 0 — Prerequisitos
 
 ### 0.1 Clonar todos los repos gen5w
@@ -107,28 +133,26 @@ Para verificar si el HU tiene wideopen instalado: intenta conectar por SSH al HU
 
 ## Fase 1 — Exploit USB (navi_extended)
 
-> **Requiere:** HU en estado inicial (sin wideopen) con una versión de AppNavi que soporte ejecución de scripts USB. Ver [engineering_mode.md](../docs/engineering_mode.md) para detalles sobre el punto de entrada inicial.
+> **Requiere:** llegar a Engineering Mode → Dynamics → Navigation → Config → "Update AppNavi from USB" en el HU. Ver la sección **"⚠️ El verdadero bloqueante"** en [`phase1_usb/README.md`](phase1_usb/README.md) — es el paso genuinamente incierto de todo el plan, no la mecánica de extracción en sí (que ya está lista y verificada).
 
 ### 1.1 Compilar navi_extended (C# .NET)
 
+**Verificado 2026-07-11** — compila y publica sin errores:
 ```bash
 cd tools/navi_extended/
-# Requiere .NET SDK instalado
 dotnet publish -c Release -r linux-x64 --self-contained true
-# El binario resultante es el ejecutable para el HU (x86-64 Linux)
-```
-
-O descargar el binario precompilado si el repo lo proporciona:
-```bash
-ls navi_extended/USB_FILES/   # buscar binario AppNavi precompilado
+# Binario real: ELF 64-bit x86-64 dinámico, confirmado con `file`
+# → bin/Release/net6.0/linux-x64/publish/navi_extended
 ```
 
 ### 1.2 Preparar el USB (fase de extracción de claves)
 
 ```bash
-# Usar el script de preparación:
-./phase1_usb/prepare_usb.sh /dev/diskX   # macOS: /dev/disk2, Linux: /dev/sdb
+# Usar el script de preparación (probado end-to-end contra un directorio local el 2026-07-11):
+./phase1_usb/prepare_usb.sh /Volumes/USB   # macOS
 ```
+
+El script ya copia el binario compilado (si existe) como `AppNavi` y `navi_eu/AppNavi` en el USB, y escribe una versión **corregida** de `main_loop_code.sh` — la plantilla del repo upstream `navi_extended` nunca llamaba a `extract_keys.sh` (bug real encontrado y corregido hoy, ver comentarios en el script).
 
 Estructura que debe quedar en la raíz del USB:
 ```

@@ -42,7 +42,30 @@ fi
 # Copiar scripts principales
 echo "Copiando scripts..."
 cp "$NAVI_USB/main_loop.sh"      "$USB/"  && ok "main_loop.sh"
-cp "$NAVI_USB/main_loop_code.sh" "$USB/"  && ok "main_loop_code.sh"
+
+# main_loop_code.sh del repo upstream navi_extended es una PLANTILLA VACÍA (solo hace `ls`,
+# nunca llama a extract_keys.sh — verificado leyendo el fuente el 2026-07-11). Si se copiara
+# tal cual, el HU no haría nada útil en bucle. Escribimos aquí la versión que sí despacha a
+# extract_keys.sh, en vez de editar el clon de terceros (no rastreado por este repo, se
+# perdería en un re-clone de ../setup.sh).
+cat > "$USB/main_loop_code.sh" <<'DISPATCH'
+#!/bin/bash
+
+USB_PATH=$(dirname $0)
+cd $USB_PATH
+
+printf "\n----- Caller:($(ps -o comm= $PPID)) - PID:($PPID) - At($(date)) -----\n" ;
+
+# extract_keys.sh es idempotente (usa sus propios flags en STATUS_FLAGS/ para no repetir
+# pasos ya hechos) — es seguro llamarlo en cada iteración del bucle de 10s.
+if [ -f "./INITIAL_SETUP_SCRIPTS/extract_keys.sh" ]; then
+    bash ./INITIAL_SETUP_SCRIPTS/extract_keys.sh
+fi
+
+printf "\n----- END Caller:($(ps -o comm= $PPID)) - PID:($PPID) - At($(date)) END -----\n" ;
+DISPATCH
+chmod +x "$USB/main_loop_code.sh"
+ok "main_loop_code.sh (versión corregida — la del repo upstream no llama a extract_keys.sh)"
 
 # Copiar scripts de setup inicial
 mkdir -p "$USB/INITIAL_SETUP_SCRIPTS"
@@ -67,6 +90,20 @@ cp "$NAVI_USB/wideopen_service_first_run.sh"  "$USB/" && ok "wideopen_service_fi
 mkdir -p "$USB/EXTREMELY_RISKY_BECAREFUL"
 cp "$NAVI_USB/EXTREMELY_RISKY_BECAREFUL/"* "$USB/EXTREMELY_RISKY_BECAREFUL/" && ok "EXTREMELY_RISKY scripts"
 
+# Binario navi_extended compilado (build linux-x64 self-contained), si existe.
+# El mecanismo real de instalación inicial (menú "Update AppNavi from USB" dentro de
+# Engineering Mode) no está confirmado con precisión — ver aviso en README.md de esta
+# carpeta. Se copia en dos ubicaciones candidatas por si acaso; verificar en el HU real
+# cuál (si alguna) recoge el menú de actualización.
+NAVI_BUILD="$TOOLS_DIR/navi_extended/bin/Release/net6.0/linux-x64/publish/navi_extended"
+if [[ -f "$NAVI_BUILD" ]]; then
+    cp "$NAVI_BUILD" "$USB/AppNavi" && ok "AppNavi (navi_extended compilado, candidato raíz USB)"
+    mkdir -p "$USB/navi_eu"
+    cp "$NAVI_BUILD" "$USB/navi_eu/AppNavi" && ok "navi_eu/AppNavi (candidato alternativo, imita estructura OTA real)"
+else
+    warn "navi_extended no está compilado — ejecuta primero: cd ../navi_extended && dotnet publish -c Release -r linux-x64 --self-contained true"
+fi
+
 # Crear directorio de status
 mkdir -p "$USB/STATUS_FLAGS"
 
@@ -81,8 +118,10 @@ echo ""
 echo "Estructura esperada del USB:"
 cat <<'EOF'
 USB:/
-├── main_loop.sh                     ← script lanzador (ejecutado por navi_extended)
-├── main_loop_code.sh                ← dispatcher de lógica
+├── AppNavi                          ← navi_extended compilado (candidato para reemplazar AppNavi; sin confirmar)
+├── navi_eu/AppNavi                  ← mismo binario, ruta alternativa (imita estructura OTA real)
+├── main_loop.sh                     ← script lanzador (ejecutado por navi_extended una vez instalado)
+├── main_loop_code.sh                ← dispatcher CORREGIDO (llama a extract_keys.sh; el del repo upstream no lo hacía)
 ├── DecryptToPIPE_FK                 ← versión que extrae la clave (standard)
 ├── DecryptToPIPE_RC                 ← versión alternativa de hardware
 ├── install_wideopen_service.sh      ← instala el servicio de persistencia
@@ -90,8 +129,8 @@ USB:/
 ├── wideopen_service.sh              ← script del servicio
 ├── wideopen_service_first_run.sh    ← primer arranque post-instalación
 ├── INITIAL_SETUP_SCRIPTS/
-│   ├── extract_keys.sh              ← EXTRAE DecryptToPIPE + decryption_key.der
-│   └── restore_appnavi.sh           ← instala AppNavi parcheada en el HU
+│   ├── extract_keys.sh              ← EXTRAE DecryptToPIPE + un fichero *_key_*.der
+│   └── restore_appnavi.sh           ← restaura el AppNavi oficial (requiere appnavi.tar + la clave)
 ├── EXTREMELY_RISKY_BECAREFUL/       ← solo en emergencias
 │   ├── spoof_decrypttopipe.sh
 │   ├── restore_decrypttopipe_og.sh
@@ -102,5 +141,9 @@ echo ""
 echo "IMPORTANTE: Copia también el OTA oficial al USB si vas a hacer restore_appnavi:"
 echo "  cp /path/to/appnavi.tar $USB/HU/images/navi_eu/appnavi.tar"
 echo ""
+echo "⚠️  Punto de entrada sin confirmar: cómo hacer que el HU ejecute AppNavi/navi_extended"
+echo "    por primera vez sigue siendo incierto (bloqueo de Engineering Mode) — ver la sección"
+echo "    '⚠️ El verdadero bloqueante' en README.md de esta carpeta antes de conectar el USB."
+echo ""
 echo "Siguiente: conecta el USB al HU y espera 3 ciclos de reinicio (~10-15 min)"
-echo "Luego verifica que aparecen en el USB: decryption_key.der + STATUS_FLAGS/STAGE2_DONE"
+echo "Luego verifica que aparecen en el USB: un fichero *_key_*.der + STATUS_FLAGS/EXTRACT_KEYS_STAGE_2_FLAG"
